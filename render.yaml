@@ -2,7 +2,7 @@ services:
   - type: web
     name: lead-gold-server-tracker
     runtime: docker
-    plan: starter
+    plan: free
     healthCheckPath: /api/health
     envVars:
       - key: STEAM_API_KEY
