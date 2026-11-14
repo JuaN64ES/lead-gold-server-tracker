@@ -5,6 +5,14 @@ const voterId = (() => {
   if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : "lg-"+Date.now()+"-"+Math.random().toString(36).slice(2)); localStorage.setItem("lg_voter_id", id); }
   return id;
 })();
+const playerNameKey = "lg_player_name";
+function currentPlayerName(){ return (localStorage.getItem(playerNameKey)||"").trim().slice(0,24); }
+function savePlayerName(){
+  const value=$("playerName").value.trim().replace(/\s+/g," ").slice(0,24);
+  $("playerName").value=value;
+  if(value){localStorage.setItem(playerNameKey,value);$("profileStatus").textContent="Apodo guardado en este dispositivo";}
+  else{localStorage.removeItem(playerNameKey);$("profileStatus").textContent="Escribe un apodo para votar";}
+}
 function esc(s){return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function formatTime(ts){if(!ts)return "Sin datos";return new Date(ts*1000).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"});}
 function checkThreshold(servers){
@@ -67,19 +75,27 @@ async function loadMeetups(){
     $("meetupNotice").textContent=`${items.length} quedada(s) publicadas · Los votos son comunitarios`;
     $("meetups").innerHTML=items.length?items.map(m=>{
       const date=m.event_at?new Date(m.event_at).toLocaleString("es-ES",{dateStyle:"full",timeStyle:"short"}):"Fecha por confirmar";
-      return `<article class="meetup-card"><div><div class="meetup-title">${esc(m.title)}</div><div class="meetup-date">◷ ${esc(date)}</div>${m.details?`<div class="meetup-details">${esc(m.details)}</div>`:""}</div><div class="vote-actions"><button class="vote-btn yes" data-id="${m.id}" data-vote="1">👍 <span class="vote-count">${m.yes_count||0}</span></button><button class="vote-btn no" data-id="${m.id}" data-vote="-1">👎 <span class="vote-count">${m.no_count||0}</span></button></div></article>`;
+      const yesNames=(m.yes_voters||[]).map(v=>esc(v)).join(", ")||"Todavía nadie";
+      const noNames=(m.no_voters||[]).map(v=>esc(v)).join(", ")||"Nadie";
+      return `<article class="meetup-card"><div><div class="meetup-title">${esc(m.title)}</div><div class="meetup-date">◷ ${esc(date)}</div>${m.details?`<div class="meetup-details">${esc(m.details)}</div>`:""}</div><div class="vote-actions"><button class="vote-btn yes" data-id="${m.id}" data-vote="1">👍 <span class="vote-count">${m.yes_count||0}</span></button><button class="vote-btn no" data-id="${m.id}" data-vote="-1">👎 <span class="vote-count">${m.no_count||0}</span></button></div><div class="attendee-lists"><div class="attendee-group yes"><strong>👍 Vienen (${m.yes_count||0})</strong><div class="attendee-names">${yesNames}</div></div><div class="attendee-group no"><strong>👎 No pueden (${m.no_count||0})</strong><div class="attendee-names">${noNames}</div></div></div></article>`;
     }).join(""):'<div class="empty-meetups">Todavía no hay quedadas. ¡Publica la primera!</div>';
     document.querySelectorAll(".vote-btn").forEach(b=>b.addEventListener("click",()=>sendVote(b)));
   }catch(e){$("meetupNotice").className="notice error";$("meetupNotice").textContent="No se pudo conectar con el tablón. Inténtalo de nuevo más tarde.";}
 }
 async function sendVote(button){
+  const name=currentPlayerName();
+  if(!name){$("playerName").focus();alert("Antes de votar, escribe tu apodo en el apartado de comunidad.");return;}
   button.disabled=true;
   try{
-    const res=await fetch(`/api/meetups/${button.dataset.id}/vote`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({voter_id:voterId,vote:Number(button.dataset.vote)})});
+    const res=await fetch(`/api/meetups/${button.dataset.id}/vote`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({voter_id:voterId,voter_name:name,vote:Number(button.dataset.vote)})});
     if(!res.ok)throw new Error("No se pudo guardar el voto");
     await loadMeetups();
   }catch(e){alert(e.message);}finally{button.disabled=false;}
 }
+$("playerName").value=currentPlayerName();
+if(currentPlayerName())$("profileStatus").textContent="Apodo guardado en este dispositivo";
+$("playerName").addEventListener("change",savePlayerName);
+$("playerName").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();savePlayerName();}});
 $("meetupForm").addEventListener("submit",async e=>{
   e.preventDefault();
   const title=$("meetupTitle").value.trim(); if(title.length<2)return;

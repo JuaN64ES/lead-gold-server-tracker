@@ -42,6 +42,10 @@
     <section class="community">
       <div class="section-head"><div><div class="eyebrow">COMMUNITY BOARD</div><h2>Quedadas y avisos</h2></div><span class="board-tag">PUBLICADO PARA TODOS</span></div>
       <p class="community-intro">Propón una partida, comparte el día y la hora, y apunta si te unes.</p>
+      <div class="player-profile">
+        <label for="playerName">TU APODO EN LA COMUNIDAD</label>
+        <div class="profile-edit"><input id="playerName" maxlength="24" placeholder="Ej. BillyTheKid" autocomplete="nickname"><span id="profileStatus">Se mostrará junto a tus votos</span></div>
+      </div>
       <form id="meetupForm" class="meetup-form">
         <label>Nombre de la quedada<input id="meetupTitle" maxlength="100" required placeholder="Ej. Partida del domingo"></label>
         <label>Fecha y hora<input id="meetupDate" type="datetime-local"></label>
