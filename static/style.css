@@ -56,3 +56,21 @@ body{
   .hero-logo{height:175px;width:205px}
   .hero-characters{height:47%;width:108%;right:-15px}
 }
+
+/* Selectable community character avatars */
+.avatar-picker{padding:15px;margin:0 0 13px;background:#111e2b;border:1px solid #25364a;border-radius:8px}
+.avatar-picker-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
+.avatar-picker-heading strong{color:#d4a15d;font-size:9px;letter-spacing:1.2px}
+.avatar-picker-heading span{color:#75879d;font-size:10px}
+.avatar-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.avatar-option{min-width:0;display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px 8px 9px;background:#0b121c;border:1px solid #2b3b50;border-radius:8px;color:#dce7f3;font:700 11px Inter;cursor:pointer;transition:border-color .15s,background .15s,transform .15s}
+.avatar-option:hover{border-color:#9b703b;transform:translateY(-2px)}
+.avatar-option.selected{border-color:#e6a34b;background:linear-gradient(180deg,#302719,#141c27);box-shadow:0 0 0 1px #e6a34b44,0 6px 20px #0004}
+.avatar-portrait{width:100%;height:112px;display:grid;place-items:center;overflow:hidden;border-radius:5px;background:radial-gradient(ellipse at 50% 30%,#59402a,#1b1c1d 72%)}
+.avatar-portrait img{width:100%;height:100%;object-fit:contain;object-position:center bottom;filter:drop-shadow(0 4px 5px #0009)}
+.avatar-selected{font-size:10px;color:#d4a15d;margin-top:10px}
+.attendee-person{display:inline-flex;align-items:center;gap:5px;margin:2px 9px 2px 0;vertical-align:middle}
+.attendee-avatar{width:24px;height:24px;object-fit:contain;border-radius:50%;background:#342719;border:1px solid #8c6536;vertical-align:middle}
+.attendee-avatar.small{width:24px;height:24px}
+.attendee-names{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+@media(max-width:600px){.avatar-picker-heading{align-items:flex-start;flex-direction:column;gap:5px}.avatar-options{gap:6px}.avatar-option{padding:7px 4px;font-size:10px}.avatar-portrait{height:82px}}

@@ -52,6 +52,16 @@
         <label for="playerName">TU APODO EN LA COMUNIDAD</label>
         <div class="profile-edit"><input id="playerName" maxlength="24" placeholder="Ej. BillyTheKid" autocomplete="nickname"><span id="profileStatus">Se mostrará junto a tus votos</span></div>
       </div>
+      <div class="avatar-picker">
+        <div class="avatar-picker-heading"><strong>ELIGE TU PERSONAJE FAVORITO</strong><span>Tu avatar aparecerá junto a tu nombre en las quedadas y votaciones.</span></div>
+        <div class="avatar-options" id="avatarOptions">
+          <button type="button" class="avatar-option" data-avatar="blaster" aria-pressed="false"><span class="avatar-portrait"><img src="/static/img/avatars/blaster.png" alt=""></span><strong>Blaster</strong></button>
+          <button type="button" class="avatar-option" data-avatar="deputy" aria-pressed="false"><span class="avatar-portrait"><img src="/static/img/avatars/deputy.png" alt=""></span><strong>Deputy</strong></button>
+          <button type="button" class="avatar-option" data-avatar="gunslinger" aria-pressed="false"><span class="avatar-portrait"><img src="/static/img/avatars/gunslinger.png" alt=""></span><strong>Gunslinger</strong></button>
+          <button type="button" class="avatar-option" data-avatar="trapper" aria-pressed="false"><span class="avatar-portrait"><img src="/static/img/avatars/trapper.png" alt=""></span><strong>Trapper</strong></button>
+        </div>
+        <div class="avatar-selected" id="avatarStatus">Personaje seleccionado: Blaster</div>
+      </div>
       <form id="meetupForm" class="meetup-form">
         <label>Nombre de la quedada<input id="meetupTitle" maxlength="100" required placeholder="Ej. Partida del domingo"></label>
         <label>Fecha y hora<input id="meetupDate" type="datetime-local"></label>

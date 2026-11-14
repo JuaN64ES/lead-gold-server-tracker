@@ -58,7 +58,7 @@ def init_db():
             created_at TEXT NOT NULL)"""
         vote_sql = """CREATE TABLE IF NOT EXISTS votes (
             meetup_id BIGINT NOT NULL, voter_id TEXT NOT NULL,
-            voter_name TEXT NOT NULL DEFAULT 'Jugador', vote INTEGER NOT NULL CHECK(vote IN (-1,1)),
+            voter_name TEXT NOT NULL DEFAULT 'Jugador', avatar TEXT NOT NULL DEFAULT 'blaster', vote INTEGER NOT NULL CHECK(vote IN (-1,1)),
             PRIMARY KEY (meetup_id, voter_id),
             FOREIGN KEY(meetup_id) REFERENCES meetups(id) ON DELETE CASCADE)"""
     else:
@@ -68,7 +68,7 @@ def init_db():
             created_at TEXT NOT NULL)"""
         vote_sql = """CREATE TABLE IF NOT EXISTS votes (
             meetup_id INTEGER NOT NULL, voter_id TEXT NOT NULL,
-            voter_name TEXT NOT NULL DEFAULT 'Jugador', vote INTEGER NOT NULL CHECK(vote IN (-1,1)),
+            voter_name TEXT NOT NULL DEFAULT 'Jugador', avatar TEXT NOT NULL DEFAULT 'blaster', vote INTEGER NOT NULL CHECK(vote IN (-1,1)),
             PRIMARY KEY (meetup_id, voter_id),
             FOREIGN KEY(meetup_id) REFERENCES meetups(id) ON DELETE CASCADE)"""
     with db() as conn:
@@ -80,6 +80,14 @@ def init_db():
         else:
             try:
                 conn.execute("ALTER TABLE votes ADD COLUMN voter_name TEXT NOT NULL DEFAULT 'Jugador'")
+            except sqlite3.OperationalError as exc:
+                if "duplicate column" not in str(exc).lower():
+                    raise
+        if DATABASE_URL:
+            conn.execute("ALTER TABLE votes ADD COLUMN IF NOT EXISTS avatar TEXT NOT NULL DEFAULT 'blaster'")
+        else:
+            try:
+                conn.execute("ALTER TABLE votes ADD COLUMN avatar TEXT NOT NULL DEFAULT 'blaster'")
             except sqlite3.OperationalError as exc:
                 if "duplicate column" not in str(exc).lower():
                     raise
@@ -99,6 +107,9 @@ class VoteIn(BaseModel):
     voter_id: str = Field(min_length=8, max_length=80)
     voter_name: str = Field(min_length=1, max_length=24)
     vote: int
+    avatar: str = Field(default="blaster", max_length=20)
+
+AVATARS = {"blaster", "deputy", "gunslinger", "trapper"}
 
 async def get_master_servers():
     if not STEAM_API_KEY:
@@ -155,11 +166,11 @@ async def servers(force: bool = Query(False)):
 async def list_meetups():
     with db() as conn:
         rows = conn.execute("SELECT * FROM meetups ORDER BY CASE WHEN event_at='' THEN 1 ELSE 0 END, event_at ASC, id DESC").fetchall()
-        votes = conn.execute("SELECT meetup_id, voter_name, vote FROM votes ORDER BY voter_name ASC").fetchall()
+        votes = conn.execute("SELECT meetup_id, voter_name, avatar, vote FROM votes ORDER BY voter_name ASC").fetchall()
     grouped = {}
     for v in votes:
         item = grouped.setdefault(v["meetup_id"], {"yes_voters": [], "no_voters": []})
-        item["yes_voters" if v["vote"] == 1 else "no_voters"].append(v["voter_name"])
+        item["yes_voters" if v["vote"] == 1 else "no_voters"].append({"name": v["voter_name"], "avatar": v["avatar"]})
     result = []
     for row in rows:
         item = dict(row); names = grouped.get(row["id"], {"yes_voters": [], "no_voters": []})
@@ -188,9 +199,9 @@ async def vote_meetup(meetup_id: int, item: VoteIn):
     with db() as conn:
         exists = conn.execute("SELECT id FROM meetups WHERE id=?", (meetup_id,)).fetchone()
         if not exists: raise HTTPException(404, "Quedada no encontrada.")
-        conn.execute("""INSERT INTO votes(meetup_id,voter_id,voter_name,vote) VALUES(?,?,?,?)
-            ON CONFLICT(meetup_id,voter_id) DO UPDATE SET voter_name=excluded.voter_name, vote=excluded.vote""",
-            (meetup_id, voter, name[:24], item.vote))
+        conn.execute("""INSERT INTO votes(meetup_id,voter_id,voter_name,avatar,vote) VALUES(?,?,?,?,?)
+            ON CONFLICT(meetup_id,voter_id) DO UPDATE SET voter_name=excluded.voter_name, avatar=excluded.avatar, vote=excluded.vote""",
+            (meetup_id, voter, name[:24], item.avatar if item.avatar in AVATARS else "blaster", item.vote))
         counts = conn.execute("SELECT SUM(CASE WHEN vote=1 THEN 1 ELSE 0 END) yes_count, SUM(CASE WHEN vote=-1 THEN 1 ELSE 0 END) no_count FROM votes WHERE meetup_id=?", (meetup_id,)).fetchone()
     return {"ok": True, "yes_count": counts["yes_count"] or 0, "no_count": counts["no_count"] or 0}
 
