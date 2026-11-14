@@ -55,7 +55,7 @@ def init_db():
         meetup_sql = """CREATE TABLE IF NOT EXISTS meetups (
             id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL,
             details TEXT NOT NULL DEFAULT '', event_at TEXT NOT NULL DEFAULT '',
-            created_at TEXT NOT NULL)"""
+            created_at TEXT NOT NULL, creator_id TEXT NOT NULL DEFAULT '')"""
         vote_sql = """CREATE TABLE IF NOT EXISTS votes (
             meetup_id BIGINT NOT NULL, voter_id TEXT NOT NULL,
             voter_name TEXT NOT NULL DEFAULT 'Jugador', avatar TEXT NOT NULL DEFAULT 'blaster', vote INTEGER NOT NULL CHECK(vote IN (-1,1)),
@@ -65,7 +65,7 @@ def init_db():
         meetup_sql = """CREATE TABLE IF NOT EXISTS meetups (
             id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL,
             details TEXT NOT NULL DEFAULT '', event_at TEXT NOT NULL DEFAULT '',
-            created_at TEXT NOT NULL)"""
+            created_at TEXT NOT NULL, creator_id TEXT NOT NULL DEFAULT '')"""
         vote_sql = """CREATE TABLE IF NOT EXISTS votes (
             meetup_id INTEGER NOT NULL, voter_id TEXT NOT NULL,
             voter_name TEXT NOT NULL DEFAULT 'Jugador', avatar TEXT NOT NULL DEFAULT 'blaster', vote INTEGER NOT NULL CHECK(vote IN (-1,1)),
@@ -74,6 +74,15 @@ def init_db():
     with db() as conn:
         conn.execute(meetup_sql)
         conn.execute(vote_sql)
+        # Safe migration: store the browser identity that created each meetup.
+        if DATABASE_URL:
+            conn.execute("ALTER TABLE meetups ADD COLUMN IF NOT EXISTS creator_id TEXT NOT NULL DEFAULT ''")
+        else:
+            try:
+                conn.execute("ALTER TABLE meetups ADD COLUMN creator_id TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError as exc:
+                if "duplicate column" not in str(exc).lower():
+                    raise
         # Safe migration for databases created by the previous version.
         if DATABASE_URL:
             conn.execute("ALTER TABLE votes ADD COLUMN IF NOT EXISTS voter_name TEXT NOT NULL DEFAULT 'Jugador'")
@@ -102,6 +111,13 @@ class MeetupIn(BaseModel):
     title: str = Field(min_length=2, max_length=100)
     details: str = Field(default="", max_length=500)
     event_at: str = Field(default="", max_length=40)
+    creator_id: str = Field(min_length=8, max_length=80)
+
+class MeetupEditIn(BaseModel):
+    title: str = Field(min_length=2, max_length=100)
+    details: str = Field(default="", max_length=500)
+    event_at: str = Field(default="", max_length=40)
+    creator_id: str = Field(min_length=8, max_length=80)
 
 class VoteIn(BaseModel):
     voter_id: str = Field(min_length=8, max_length=80)
@@ -183,13 +199,39 @@ async def create_meetup(item: MeetupIn):
     title = item.title.strip()
     if len(title) < 2: raise HTTPException(400, "Escribe un título un poco más largo.")
     with db() as conn:
-        sql = "INSERT INTO meetups(title,details,event_at,created_at) VALUES(?,?,?,?)"
-        params = (title, item.details.strip(), item.event_at.strip(), time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+        sql = "INSERT INTO meetups(title,details,event_at,created_at,creator_id) VALUES(?,?,?,?,?)"
+        params = (title, item.details.strip(), item.event_at.strip(), time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), item.creator_id.strip())
         if DATABASE_URL:
             meetup_id = conn.execute(sql + " RETURNING id", params).fetchone()["id"]
         else:
             meetup_id = conn.execute(sql, params).lastrowid
     return {"ok": True, "id": meetup_id}
+
+@app.put("/api/meetups/{meetup_id}")
+async def edit_meetup(meetup_id: int, item: MeetupEditIn):
+    title = item.title.strip()
+    if len(title) < 2:
+        raise HTTPException(400, "Escribe un título un poco más largo.")
+    with db() as conn:
+        row = conn.execute("SELECT creator_id FROM meetups WHERE id=?", (meetup_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Quedada no encontrada.")
+        if not row["creator_id"] or row["creator_id"] != item.creator_id.strip():
+            raise HTTPException(403, "Solo quien creó esta quedada puede modificarla.")
+        conn.execute("UPDATE meetups SET title=?, details=?, event_at=? WHERE id=?",
+                     (title, item.details.strip(), item.event_at.strip(), meetup_id))
+    return {"ok": True}
+
+@app.delete("/api/meetups/{meetup_id}")
+async def delete_meetup(meetup_id: int, creator_id: str = Query(..., min_length=8, max_length=80)):
+    with db() as conn:
+        row = conn.execute("SELECT creator_id FROM meetups WHERE id=?", (meetup_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Quedada no encontrada.")
+        if not row["creator_id"] or row["creator_id"] != creator_id.strip():
+            raise HTTPException(403, "Solo quien creó esta quedada puede eliminarla.")
+        conn.execute("DELETE FROM meetups WHERE id=?", (meetup_id,))
+    return {"ok": True}
 
 @app.post("/api/meetups/{meetup_id}/vote")
 async def vote_meetup(meetup_id: int, item: VoteIn):

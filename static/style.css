@@ -74,3 +74,12 @@ body{
 .attendee-avatar.small{width:24px;height:24px}
 .attendee-names{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
 @media(max-width:600px){.avatar-picker-heading{align-items:flex-start;flex-direction:column;gap:5px}.avatar-options{gap:6px}.avatar-option{padding:7px 4px;font-size:10px}.avatar-portrait{height:82px}}
+
+/* Meetup creator controls */
+.meetup-owner-actions{display:flex;gap:7px;margin-top:11px}
+.meetup-owner-actions button,.meetup-cancel{border:1px solid #45536a;background:#1a2737;color:#dce7f3;border-radius:5px;padding:7px 10px;font:600 10px Inter;cursor:pointer}
+.meetup-owner-actions .meetup-delete{color:#e9a19a;border-color:#67413e}
+.meetup-owner-actions button:hover,.meetup-cancel:hover{border-color:#d4a15d}
+.meetup-form-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.meetup-cancel[hidden]{display:none}
+@media(max-width:700px){.meetup-form-actions{width:100%}.meetup-form-actions button{flex:1}}

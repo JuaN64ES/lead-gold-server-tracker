@@ -66,7 +66,7 @@
         <label>Nombre de la quedada<input id="meetupTitle" maxlength="100" required placeholder="Ej. Partida del domingo"></label>
         <label>Fecha y hora<input id="meetupDate" type="datetime-local"></label>
         <label class="details-label">Comentario<textarea id="meetupDetails" maxlength="500" rows="2" placeholder="Ej. Domingo 15 a las 20:30, nos vemos en el servidor EU…"></textarea></label>
-        <button class="refresh submit-meetup" type="submit">＋ Publicar quedada</button>
+        <div class="meetup-form-actions"><button id="meetupSubmit" class="refresh submit-meetup" type="submit">＋ Publicar quedada</button><button id="cancelMeetupEdit" class="meetup-cancel" type="button" hidden>Cancelar edición</button></div>
       </form>
       <div id="meetupNotice" class="notice">Cargando el tablón de la comunidad…</div>
       <div id="meetups" class="meetups"><div class="empty">Cargando quedadas…</div></div>

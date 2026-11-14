@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-let allServers = [], refreshTimer, previousPlayers = null;
+let allServers = [], refreshTimer, previousPlayers = null, editingMeetupId = null;
 const voterId = (() => {
   let id = localStorage.getItem("lg_voter_id");
   if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : "lg-"+Date.now()+"-"+Math.random().toString(36).slice(2)); localStorage.setItem("lg_voter_id", id); }
@@ -96,10 +96,35 @@ async function loadMeetups(){
       const attendeeList=(list,empty)=>list.length?list.map(v=>`<span class="attendee-person">${avatarMarkup(v.avatar)}<span>${esc(v.name)}</span></span>`).join(""):empty;
       const yesNames=attendeeList(m.yes_voters||[],"Todavía nadie");
       const noNames=attendeeList(m.no_voters||[],"Nadie");
-      return `<article class="meetup-card"><div><div class="meetup-title">${esc(m.title)}</div><div class="meetup-date">◷ ${esc(date)}</div>${m.details?`<div class="meetup-details">${esc(m.details)}</div>`:""}</div><div class="vote-actions"><button class="vote-btn yes" data-id="${m.id}" data-vote="1">👍 <span class="vote-count">${m.yes_count||0}</span></button><button class="vote-btn no" data-id="${m.id}" data-vote="-1">👎 <span class="vote-count">${m.no_count||0}</span></button></div><div class="attendee-lists"><div class="attendee-group yes"><strong>👍 Vienen (${m.yes_count||0})</strong><div class="attendee-names">${yesNames}</div></div><div class="attendee-group no"><strong>👎 No pueden (${m.no_count||0})</strong><div class="attendee-names">${noNames}</div></div></div></article>`;
+      const ownerActions = m.creator_id && m.creator_id === voterId ? `<div class="meetup-owner-actions"><button class="meetup-edit" data-id="${m.id}">✎ Editar</button><button class="meetup-delete" data-id="${m.id}">🗑 Eliminar</button></div>` : "";
+      return `<article class="meetup-card"><div><div class="meetup-title">${esc(m.title)}</div><div class="meetup-date">◷ ${esc(date)}</div>${m.details?`<div class="meetup-details">${esc(m.details)}</div>`:""}${ownerActions}</div><div class="vote-actions"><button class="vote-btn yes" data-id="${m.id}" data-vote="1">👍 <span class="vote-count">${m.yes_count||0}</span></button><button class="vote-btn no" data-id="${m.id}" data-vote="-1">👎 <span class="vote-count">${m.no_count||0}</span></button></div><div class="attendee-lists"><div class="attendee-group yes"><strong>👍 Vienen (${m.yes_count||0})</strong><div class="attendee-names">${yesNames}</div></div><div class="attendee-group no"><strong>👎 No pueden (${m.no_count||0})</strong><div class="attendee-names">${noNames}</div></div></div></article>`;
     }).join(""):'<div class="empty-meetups">Todavía no hay quedadas. ¡Publica la primera!</div>';
     document.querySelectorAll(".vote-btn").forEach(b=>b.addEventListener("click",()=>sendVote(b)));
+    document.querySelectorAll(".meetup-edit").forEach(b=>b.addEventListener("click",()=>startMeetupEdit(b.dataset.id,items)));
+    document.querySelectorAll(".meetup-delete").forEach(b=>b.addEventListener("click",()=>deleteMeetup(b.dataset.id)));
   }catch(e){$("meetupNotice").className="notice error";$("meetupNotice").textContent="No se pudo conectar con el tablón. Inténtalo de nuevo más tarde.";}
+}
+function startMeetupEdit(id, items){
+  const meetup=items.find(m=>String(m.id)===String(id)); if(!meetup)return;
+  editingMeetupId=meetup.id;
+  $("meetupTitle").value=meetup.title||"";
+  $("meetupDetails").value=meetup.details||"";
+  $("meetupDate").value=meetup.event_at||"";
+  $("meetupSubmit").textContent="Guardar cambios";
+  $("cancelMeetupEdit").hidden=false;
+  $("meetupForm").scrollIntoView({behavior:"smooth",block:"center"});
+}
+function cancelMeetupEdit(){
+  editingMeetupId=null; $("meetupForm").reset(); $("meetupSubmit").textContent="＋ Publicar quedada"; $("cancelMeetupEdit").hidden=true;
+}
+async function deleteMeetup(id){
+  if(!confirm("¿Seguro que quieres eliminar esta quedada? También se borrarán sus votos."))return;
+  try{
+    const res=await fetch(`/api/meetups/${id}?creator_id=${encodeURIComponent(voterId)}`,{method:"DELETE"});
+    const data=await res.json().catch(()=>({})); if(!res.ok)throw new Error(data.detail||"No se pudo eliminar la quedada.");
+    if(String(editingMeetupId)===String(id))cancelMeetupEdit();
+    await loadMeetups();
+  }catch(err){alert(err.message);}
 }
 async function sendVote(button){
   const name=currentPlayerName();
@@ -120,13 +145,16 @@ $("playerName").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefa
 $("meetupForm").addEventListener("submit",async e=>{
   e.preventDefault();
   const title=$("meetupTitle").value.trim(); if(title.length<2)return;
-  const button=e.submitter;button.disabled=true;button.textContent="Publicando…";
+  const button=$("meetupSubmit");button.disabled=true;button.textContent=editingMeetupId?"Guardando…":"Publicando…";
+  const payload={title,details:$("meetupDetails").value,event_at:$("meetupDate").value,creator_id:voterId};
   try{
-    const res=await fetch("/api/meetups",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,details:$("meetupDetails").value,event_at:$("meetupDate").value})});
-    if(!res.ok)throw new Error("No se pudo publicar la quedada");
-    $("meetupForm").reset();await loadMeetups();
-  }catch(err){alert(err.message);}finally{button.disabled=false;button.textContent="＋ Publicar quedada";}
+    const url=editingMeetupId?`/api/meetups/${editingMeetupId}`:"/api/meetups";
+    const res=await fetch(url,{method:editingMeetupId?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    const data=await res.json().catch(()=>({})); if(!res.ok)throw new Error(data.detail||"No se pudo guardar la quedada");
+    cancelMeetupEdit();await loadMeetups();
+  }catch(err){alert(err.message);}finally{button.disabled=false;button.textContent=editingMeetupId?"Guardar cambios":"＋ Publicar quedada";}
 });
+$("cancelMeetupEdit").addEventListener("click",cancelMeetupEdit);
 ["search","occupancy","sort"].forEach(id=>$(id).addEventListener(id==="search"?"input":"change",render));
 $("refreshBtn").addEventListener("click",()=>load(true));
 $("bellBtn").addEventListener("click",enableBell);
