@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1018">
+<title>Lead & Gold — Server Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <a class="brand" href="#"><span class="brand-mark">L<span>&</span>G</span><span>SERVER<span class="muted">TRACKER</span></span></a>
+    <div class="top-right"><span class="live-dot"></span><span>STEAM SERVER NETWORK</span><span class="version">BETA</span></div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="eyebrow"><span class="line"></span> LEAD & GOLD: GANGS OF THE WILD WEST</div>
+      <h1>Find your next <span>showdown.</span></h1>
+      <p class="sub">Todos los servidores disponibles, en un solo lugar.</p>
+      <div class="stats">
+        <article class="stat"><span class="stat-label">SERVIDORES ONLINE</span><strong id="totalServers">—</strong><span class="stat-foot">Detectados por Steam</span></article>
+        <article class="stat"><span class="stat-label">JUGADORES ONLINE</span><strong id="totalPlayers">—</strong><span class="stat-foot">En todas las partidas</span></article>
+        <article class="stat"><span class="stat-label">ÚLTIMA ACTUALIZACIÓN</span><strong class="small-value" id="lastUpdate">—</strong><span class="stat-foot" id="refreshLabel">Actualización automática</span></article>
+      </div>
+    </section>
+
+    <section class="browser">
+      <div class="section-head">
+        <div><div class="eyebrow">SERVER BROWSER</div><h2>Lista de servidores</h2></div>
+        <button id="refreshBtn" class="refresh"><span>↻</span> Actualizar</button>
+      </div>
+      <div class="toolbar">
+        <label class="search"><span>⌕</span><input id="search" placeholder="Buscar servidor o mapa..." autocomplete="off"></label>
+        <select id="occupancy"><option value="all">Todos los servidores</option><option value="players">Con jugadores</option><option value="empty">Vacíos</option><option value="notfull">Con plazas libres</option></select>
+        <select id="sort"><option value="players">Más jugadores</option><option value="name">Nombre A–Z</option><option value="ping">Menor ping</option></select>
+      </div>
+      <div id="notice" class="notice">Conectando con el directorio de servidores de Steam…</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ESTADO / SERVIDOR</th><th>MAPA</th><th>JUGADORES</th><th>PING</th><th></th></tr></thead>
+          <tbody id="serverRows"><tr><td colspan="5" class="empty">Buscando servidores…</td></tr></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty-state" hidden><div class="empty-icon">⌕</div><strong>No se encontraron servidores</strong><span>Prueba a cambiar los filtros o vuelve a actualizar.</span></div>
+      <footer class="table-foot"><span id="resultCount">0 servidores</span><span>Los datos se consultan desde Steam · Refresco automático</span></footer>
+    </section>
+    <footer class="page-foot"><span>LEAD & GOLD SERVER TRACKER</span><span>Proyecto comunitario no oficial · No afiliado a Fatshark ni Valve</span></footer>
+  </main>
+</div>
+<script src="/static/app.js"></script>
+</body></html>
