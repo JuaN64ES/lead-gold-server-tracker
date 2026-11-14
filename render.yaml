@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: lead-gold-server-tracker
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: STEAM_API_KEY
+        sync: false
+      - key: MAX_SERVERS
+        value: "100"
+      - key: REFRESH_SECONDS
+        value: "45"
