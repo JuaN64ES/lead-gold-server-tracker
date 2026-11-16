@@ -63,8 +63,15 @@ function render(){
   $("resultCount").textContent=`${rows.length} servidor${rows.length===1?"":"es"}`;
   document.querySelectorAll(".join").forEach(b=>b.addEventListener("click",async()=>{
     const address = (b.dataset.address || "").trim();
-    if (!/^[a-zA-Z0-9.\\-\\[\\]:]+$/.test(address) || !address.includes(":")) {
-      alert("La dirección de este servidor no parece válida.");
+    const separator = address.lastIndexOf(":");
+    const host = separator > 0 ? address.slice(0, separator) : "";
+    const portText = separator > 0 ? address.slice(separator + 1) : "";
+    const port = Number(portText);
+    // Accept IPv4, IPv6 (including bracketed IPv6), and hostnames with a numeric port.
+    // Validate the host and port separately instead of rejecting valid address characters.
+    if (!host || /\\s/.test(address) || !/^[A-Za-z0-9.:[\\]-]+$/.test(host) ||
+        !/^\\d{1,5}$/.test(portText) || !Number.isInteger(port) || port < 1 || port > 65535) {
+      alert("No se ha podido interpretar la dirección de este servidor.");
       return;
     }
     // Steam's connect URI asks the installed Steam client to join this game server.
