@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-let allServers = [], refreshTimer, previousPlayers = null, editingMeetupId = null;
+let allServers = [], refreshTimer, editingMeetupId = null;
 const voterId = (() => {
   let id = localStorage.getItem("lg_voter_id");
   if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : "lg-"+Date.now()+"-"+Math.random().toString(36).slice(2)); localStorage.setItem("lg_voter_id", id); }
@@ -33,21 +33,49 @@ function savePlayerName(){
 }
 function esc(s){return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function formatTime(ts){if(!ts)return "Sin datos";return new Date(ts*1000).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"});}
-function checkThreshold(servers){
-  const over = servers.filter(s=>Number(s.players)>5);
-  if (previousPlayers !== null && "Notification" in window && Notification.permission==="granted") {
-    over.forEach(s=>{
-      const before = previousPlayers[s.address] || 0;
-      if (before <= 5) new Notification("¡Servidor con más de 5 jugadores!", {body:`${s.name}: ${s.players}/${s.max_players} · ${s.map}`});
-    });
-  }
-  previousPlayers = Object.fromEntries(servers.map(s=>[s.address,Number(s.players)||0]));
+function base64UrlToUint8Array(base64String){
+  const padding="=".repeat((4-base64String.length%4)%4);
+  const base64=(base64String+padding).replace(/-/g,"+").replace(/_/g,"/");
+  const raw=atob(base64);
+  return Uint8Array.from([...raw].map(char=>char.charCodeAt(0)));
 }
-async function enableBell(){
-  if (!("Notification" in window)) { alert("Este navegador no admite notificaciones."); return; }
-  const permission = await Notification.requestPermission();
-  $("bellLabel").textContent = permission==="granted" ? "Avisos activados" : "Avisos desactivados";
-  if(permission==="granted") new Notification("Lead and Gold Multiplayer", {body:"Te avisaremos cuando un servidor supere los 5 jugadores mientras esta página esté abierta."});
+async function enablePush(){
+  const button=$("notifyBtn");
+  if(!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)){
+    alert("Este navegador no admite notificaciones push. Prueba con Chrome o Edge en Windows.");
+    return;
+  }
+  if(!window.isSecureContext){
+    alert("Las notificaciones necesitan una conexión HTTPS.");
+    return;
+  }
+  button.disabled=true; button.textContent="ACTIVANDO…";
+  try{
+    const keyResponse=await fetch("/api/push/public-key",{cache:"no-store"});
+    if(!keyResponse.ok)throw new Error("No se pudo obtener la configuración de notificaciones.");
+    const keyData=await keyResponse.json();
+    if(!keyData.configured)throw new Error("Falta configurar la clave privada de notificaciones en Render. La web todavía no está lista para activar los avisos.");
+    const permission=await Notification.requestPermission();
+    if(permission!=="granted")throw new Error("Has bloqueado los permisos de notificación. Puedes permitirlos desde los ajustes del sitio en Chrome.");
+    const registration=await navigator.serviceWorker.register("/sw.js");
+    let subscription=await registration.pushManager.getSubscription();
+    if(!subscription){
+      subscription=await registration.pushManager.subscribe({
+        userVisibleOnly:true,
+        applicationServerKey:base64UrlToUint8Array(keyData.publicKey)
+      });
+    }
+    const save=await fetch("/api/push/subscribe",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({subscription:subscription.toJSON()})
+    });
+    if(!save.ok)throw new Error("No se pudo guardar la suscripción de avisos.");
+    button.textContent="✓ AVISOS ACTIVOS";
+    alert("¡Avisos activados! Chrome/Windows podrá mostrar notificaciones aunque cierres esta página. Recibirás un aviso cuando un servidor cruce de 5 o menos a 6 o más jugadores.");
+  }catch(error){
+    button.textContent="♧ AVISAR";
+    alert(error.message||"No se pudieron activar las notificaciones.");
+  }finally{button.disabled=false;}
 }
 function render(){
   const q=$("search").value.trim().toLowerCase(), occupancy=$("occupancy").value, sort=$("sort").value;
@@ -57,36 +85,10 @@ function render(){
   if(occupancy==="notfull")rows=rows.filter(s=>s.players<s.max_players);
   rows.sort((a,b)=>sort==="name"?a.name.localeCompare(b.name):b.players-a.players);
   $("serverRows").innerHTML=rows.map(s=>{
-    return `<tr><td><div class="server-cell"><span class="status-dot"></span><div><span class="server-name">${esc(s.name)}</span><span class="server-address">${esc(s.address)}</span></div></div></td><td><span class="map-name">${esc(s.map)}</span></td><td><span class="players">${s.players}<span> / ${s.max_players}</span></span></td><td><button class="join" data-address="${esc(s.address)}" title="Abrir Lead and Gold e intentar conectar con este servidor">▶ JUGAR</button></td></tr>`;
+    return `<tr><td><div class="server-cell"><span class="status-dot"></span><div><span class="server-name">${esc(s.name)}</span><span class="server-address">${esc(s.address)}</span></div></div></td><td><span class="map-name">${esc(s.map)}</span></td><td><span class="players">${s.players}<span> / ${s.max_players}</span></span></td></tr>`;
   }).join("");
   $("emptyState").hidden=rows.length!==0;
   $("resultCount").textContent=`${rows.length} servidor${rows.length===1?"":"es"}`;
-  document.querySelectorAll(".join").forEach(b=>b.addEventListener("click",async()=>{
-    const address = (b.dataset.address || "").trim();
-    // Use the server address supplied by the backend without a restrictive regex.
-    if (!address || !address.includes(":")) {
-      alert("Este servidor no tiene una dirección de conexión disponible.");
-      return;
-    }
-    // Launch Lead and Gold explicitly, passing the server address as a connect argument.
-    // This avoids Steam's generic server-browser connect handler, which returned an invalid App ID.
-    const steamUrl = `steam://run/42120//+connect%20${encodeURIComponent(address)}`;
-    const original = b.textContent;
-    b.textContent = "Abriendo Steam…";
-    window.location.href = steamUrl;
-    // Keep a manual fallback in case the browser/Steam client does not handle the URI.
-    setTimeout(async()=>{
-      try {
-        await navigator.clipboard.writeText(address);
-        b.textContent = "IP copiada · prueba Steam";
-        b.title = `Si no se abrió el juego, pega esta dirección en el navegador de servidores: ${address}`;
-      } catch {
-        b.textContent = "Steam · " + address;
-        b.title = `Si no se abrió el juego, usa esta dirección: ${address}`;
-      }
-      setTimeout(()=>{ b.textContent = original; }, 3500);
-    }, 1600);
-  }));
 }
 async function load(force=false){
   const btn=$("refreshBtn");btn.disabled=true;btn.innerHTML="<span>↻</span> Buscando…";
@@ -102,7 +104,7 @@ async function load(force=false){
     if(data.error){$("notice").className="notice error";$("notice").textContent="No se pudo consultar Steam: "+data.error;}
     else if(!allServers.length){$("notice").textContent="Consulta completada. Steam no ha devuelto servidores activos para este juego en este momento.";}
     else{$("notice").textContent=`${allServers.length} servidor(es) respondieron correctamente · Datos reales`;}
-    checkThreshold(allServers);render();
+    render();
   }catch(e){$("notice").className="notice error";$("notice").textContent="No se pudo conectar con el backend."; $("serverRows").innerHTML='<tr><td colspan="4" class="empty">Servicio temporalmente no disponible.</td></tr>';}
   finally{btn.disabled=false;btn.innerHTML="<span>↻</span> Actualizar";}
 }
@@ -177,7 +179,15 @@ $("meetupForm").addEventListener("submit",async e=>{
 $("cancelMeetupEdit").addEventListener("click",cancelMeetupEdit);
 ["search","occupancy","sort"].forEach(id=>$(id).addEventListener(id==="search"?"input":"change",render));
 $("refreshBtn").addEventListener("click",()=>load(true));
-$("bellBtn").addEventListener("click",enableBell);
-if("Notification" in window && Notification.permission==="granted")$("bellLabel").textContent="Avisos activados";
+$("notifyBtn").addEventListener("click",enablePush);
+async function updatePushButtonState(){
+  if(!("serviceWorker" in navigator) || !("Notification" in window) || Notification.permission!=="granted")return;
+  try{
+    const registration=await navigator.serviceWorker.register("/sw.js");
+    const subscription=await registration.pushManager.getSubscription();
+    if(subscription)$("notifyBtn").textContent="✓ AVISOS ACTIVOS";
+  }catch(_){}
+}
+if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").then(updatePushButtonState).catch(()=>{});
 load();loadMeetups();
 refreshTimer=setInterval(()=>{load(false);loadMeetups();},45000);

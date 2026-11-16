@@ -1,4 +1,4 @@
-import os, asyncio, time, sqlite3
+import os, asyncio, time, sqlite3, json
 from typing import Any
 from contextlib import contextmanager
 import httpx
@@ -15,6 +15,9 @@ QUERY_TIMEOUT = float(os.getenv("QUERY_TIMEOUT", "2.0"))
 REFRESH_SECONDS = int(os.getenv("REFRESH_SECONDS", "45"))
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 DB_PATH = os.getenv("COMMUNITY_DB_PATH", "/tmp/leadgold-community.sqlite3")
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "").replace("\\n", "\n").strip()
+VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:admin@example.com").strip()
+VAPID_PUBLIC_KEY = "BOrm2JJYlBR75a1RpK_429pg6SlLhCH4BdiMdxL9EO7nzjL3-HoWqaxzlTGVassW-AsdCq4Z0Cmi3toj6dSmS8w"
 
 class DBConnection:
     def __init__(self, connection, is_postgres: bool):
@@ -100,6 +103,16 @@ def init_db():
             except sqlite3.OperationalError as exc:
                 if "duplicate column" not in str(exc).lower():
                     raise
+        if DATABASE_URL:
+            conn.execute("""CREATE TABLE IF NOT EXISTS push_subscriptions (
+                endpoint TEXT PRIMARY KEY, subscription_json TEXT NOT NULL, created_at TEXT NOT NULL)""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS server_player_state (
+                address TEXT PRIMARY KEY, players INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL)""")
+        else:
+            conn.execute("""CREATE TABLE IF NOT EXISTS push_subscriptions (
+                endpoint TEXT PRIMARY KEY, subscription_json TEXT NOT NULL, created_at TEXT NOT NULL)""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS server_player_state (
+                address TEXT PRIMARY KEY, players INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL)""")
 
 app = FastAPI(title="Lead & Gold Multiplayer")
 
@@ -126,6 +139,74 @@ class VoteIn(BaseModel):
     avatar: str = Field(default="blaster", max_length=20)
 
 AVATARS = {"blaster", "deputy", "gunslinger", "trapper"}
+
+class PushSubscriptionIn(BaseModel):
+    subscription: dict
+
+def save_push_subscription(subscription: dict):
+    endpoint = str(subscription.get("endpoint", "")).strip()
+    keys = subscription.get("keys") or {}
+    if not endpoint.startswith("https://") or not keys.get("p256dh") or not keys.get("auth"):
+        raise HTTPException(400, "La suscripción de notificaciones no es válida.")
+    payload = json.dumps(subscription, separators=(",", ":"))
+    with db() as conn:
+        conn.execute("""INSERT INTO push_subscriptions(endpoint,subscription_json,created_at)
+            VALUES(?,?,?) ON CONFLICT(endpoint) DO UPDATE SET subscription_json=excluded.subscription_json""",
+            (endpoint, payload, time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())))
+
+def send_one_push(subscription: dict, payload: dict):
+    from pywebpush import webpush
+    return webpush(
+        subscription_info=subscription,
+        data=json.dumps(payload, ensure_ascii=False),
+        vapid_private_key=VAPID_PRIVATE_KEY,
+        vapid_claims={"sub": VAPID_SUBJECT}
+    )
+
+async def process_server_alerts(servers: list[dict]):
+    # Only maintain transition state once the VAPID secret is configured.
+    if not VAPID_PRIVATE_KEY:
+        return
+    current = {str(s["address"]): int(s.get("players", 0)) for s in servers if s.get("address")}
+    now_text = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    alerts = []
+    with db() as conn:
+        previous_rows = conn.execute("SELECT address, players FROM server_player_state").fetchall()
+        previous = {row["address"]: int(row["players"]) for row in previous_rows}
+        for address, players in current.items():
+            if previous.get(address, 0) <= 5 and players > 5 and address in previous:
+                alerts.append(next((s for s in servers if s.get("address") == address), {"address": address, "players": players}))
+            conn.execute("""INSERT INTO server_player_state(address,players,updated_at) VALUES(?,?,?)
+                ON CONFLICT(address) DO UPDATE SET players=excluded.players, updated_at=excluded.updated_at""",
+                (address, players, now_text))
+        # A server missing from the latest master list is considered back to zero.
+        for address in set(previous) - set(current):
+            conn.execute("UPDATE server_player_state SET players=0, updated_at=? WHERE address=?", (now_text, address))
+        if alerts:
+            rows = conn.execute("SELECT subscription_json FROM push_subscriptions").fetchall()
+            subscriptions = [json.loads(row["subscription_json"]) for row in rows]
+        else:
+            subscriptions = []
+    if not alerts or not subscriptions:
+        return
+    expired = []
+    for server in alerts:
+        payload = {
+            "title": "¡Servidor con más de 5 jugadores!",
+            "body": f'{server.get("name", "Servidor")}: {server.get("players", 0)}/{server.get("max_players", "?")} · {server.get("map", "Mapa desconocido")}',
+            "url": "/"
+        }
+        for subscription in subscriptions:
+            try:
+                await asyncio.to_thread(send_one_push, subscription, payload)
+            except Exception as exc:
+                status = getattr(getattr(exc, "response", None), "status_code", None)
+                if status in (404, 410):
+                    expired.append(subscription.get("endpoint", ""))
+    if expired:
+        with db() as conn:
+            for endpoint in set(expired):
+                conn.execute("DELETE FROM push_subscriptions WHERE endpoint=?", (endpoint,))
 
 async def get_master_servers():
     if not STEAM_API_KEY:
@@ -167,7 +248,33 @@ async def refresh():
         return _cache
 
 @app.get("/api/health")
-async def health(): return {"ok": True, "game_app_id": APP_ID}
+async def health():
+    # cron-job.org calls this once per minute; refresh server data and detect
+    # only the transition from 5-or-fewer to 6-or-more players.
+    data = await refresh()
+    if not data["error"]:
+        await process_server_alerts(data["servers"])
+    return {"ok": True, "game_app_id": APP_ID, "servers_checked": len(data["servers"]), "push_configured": bool(VAPID_PRIVATE_KEY)}
+
+@app.get("/api/push/public-key")
+async def push_public_key():
+    return {"publicKey": VAPID_PUBLIC_KEY, "configured": bool(VAPID_PRIVATE_KEY)}
+
+@app.post("/api/push/subscribe")
+async def push_subscribe(item: PushSubscriptionIn):
+    save_push_subscription(item.subscription)
+    return {"ok": True}
+
+@app.delete("/api/push/subscribe")
+async def push_unsubscribe(item: PushSubscriptionIn):
+    endpoint = str(item.subscription.get("endpoint", "")).strip()
+    with db() as conn:
+        conn.execute("DELETE FROM push_subscriptions WHERE endpoint=?", (endpoint,))
+    return {"ok": True}
+
+@app.get("/sw.js")
+async def service_worker():
+    return FileResponse("static/sw.js", media_type="application/javascript", headers={"Service-Worker-Allowed": "/"})
 
 @app.get("/api/servers")
 async def servers(force: bool = Query(False)):

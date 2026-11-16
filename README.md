@@ -51,3 +51,17 @@ También puedes desplegar el Dockerfile en cualquier hosting compatible con cont
 - La columna «Respuesta A2S» mide el tiempo que tarda una consulta A2S desde el backend alojado (Render). No es el ping real del jugador dentro del juego y puede ser muy distinto. Un navegador web normal no puede enviar las consultas UDP/A2S directamente al servidor del juego; por eso, sin instalar un auxiliar en el PC, no es posible obtener desde la página el mismo ping que calcula el cliente del juego. El campo `response_ms` identifica esta medición; `ping_ms` se conserva como alias de compatibilidad.
 - La API key debe mantenerse como secreto del servidor.
 - La web es un proyecto comunitario no oficial y no está afiliada a Valve ni Fatshark.
+
+
+## Notificaciones push de servidores (Chrome/Windows)
+La versión incluye Web Push mediante Service Worker y suscripciones guardadas en la misma base de datos configurada en `DATABASE_URL` (Neon).
+
+Configura estas variables en Render > Environment:
+- `VAPID_PRIVATE_KEY`: clave privada PEM generada para este proyecto. Mantenerla como secreto; no subirla a GitHub.
+- `VAPID_SUBJECT`: contacto VAPID, por ejemplo `mailto:tu-correo@example.com`.
+
+El endpoint `/api/health` actualiza la lista de servidores y detecta el cruce de 5 o menos a 6 o más jugadores. `cron-job.org` debe llamar a `https://TU-DOMINIO/api/health` cada minuto. El control de transición se guarda en la base de datos para evitar avisos repetidos mientras el servidor siga por encima de 5 jugadores. El primer sondeo crea la línea base; solo avisa en un cruce posterior.
+
+Para activar avisos, abre la web en Chrome/Edge en Windows y pulsa **AVISAR** y acepta el permiso. El navegador debe permitir notificaciones de ese sitio. Los avisos push pueden mostrarse aunque la pestaña esté cerrada; el equipo y el navegador deben conservar la capacidad de recibir notificaciones push.
+
+La frecuencia práctica de detección con la configuración gratuita actual es de aproximadamente **1 minuto**, porque cron-job.org ejecuta como mínimo cada minuto en la configuración usada. El refresco de la página continúa siendo cada 45 segundos cuando está abierta.

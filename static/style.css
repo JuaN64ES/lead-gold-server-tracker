@@ -83,3 +83,10 @@ body{
 .meetup-form-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
 .meetup-cancel[hidden]{display:none}
 @media(max-width:700px){.meetup-form-actions{width:100%}.meetup-form-actions button{flex:1}}
+
+/* Server actions and push notification button */
+.server-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.notify-btn{background:linear-gradient(180deg,#3b2c19,#241d15);border:1px solid #8b6534;border-radius:7px;padding:10px 14px;color:#f3c47c;font:700 12px Inter;cursor:pointer}
+.notify-btn:hover{border-color:#e6a34b;background:#3a2b19}
+.notify-btn:disabled{opacity:.65;cursor:wait}
+@media(max-width:480px){.server-actions{width:100%}.server-actions button{flex:1}}
