@@ -45,6 +45,13 @@
       <footer class="table-foot"><span id="resultCount">0 servidores</span><span>Datos de servidores consultados desde Steam</span></footer>
     </section>
 
+    <div id="serverModal" class="server-modal" hidden role="dialog" aria-modal="true" aria-labelledby="serverModalTitle">
+      <div class="server-modal-panel">
+        <div class="server-modal-top"><span id="serverModalTitle">INFORMACIÓN DEL SERVIDOR</span><button id="serverModalClose" class="server-modal-close" type="button" aria-label="Cerrar">×</button></div>
+        <div id="serverModalContent"><div class="server-detail-loading">Cargando…</div></div>
+      </div>
+    </div>
+
     <section class="community">
       <div class="section-head"><div><div class="eyebrow">COMMUNITY BOARD</div><h2>Quedadas y avisos</h2></div><span class="board-tag">PUBLICADO PARA TODOS</span></div>
       <p class="community-intro">Propón una partida, comparte el día y la hora, y apunta si te unes.</p>

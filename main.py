@@ -276,6 +276,39 @@ async def push_unsubscribe(item: PushSubscriptionIn):
 async def service_worker():
     return FileResponse("static/sw.js", media_type="application/javascript", headers={"Service-Worker-Allowed": "/"})
 
+@app.get("/api/server-players")
+async def server_players(address: str = Query(..., min_length=3, max_length=128)):
+    """Return live A2S player details for a server selected in the browser."""
+    if ":" not in address:
+        raise HTTPException(400, "Dirección de servidor no válida.")
+    host, port_text = address.rsplit(":", 1)
+    try:
+        port = int(port_text)
+        if not host or not (1 <= port <= 65535):
+            raise ValueError()
+    except ValueError:
+        raise HTTPException(400, "Dirección de servidor no válida.")
+
+    # Only allow addresses currently present in the live server list.
+    data = await refresh()
+    server = next((item for item in data["servers"] if item.get("address") == address), None)
+    if not server:
+        raise HTTPException(404, "El servidor ya no aparece como disponible.")
+
+    try:
+        raw_players = await asyncio.to_thread(a2s.players, (host, port), timeout=QUERY_TIMEOUT)
+        players = [{
+            "name": str(getattr(player, "name", "") or "Jugador")[:64],
+            "score": int(getattr(player, "score", 0) or 0),
+            "duration_seconds": max(0, int(getattr(player, "duration", 0) or 0))
+        } for player in raw_players]
+        players.sort(key=lambda player: (-player["score"], player["name"].lower()))
+        return {"server": server, "players": players, "players_available": True,
+                "message": "Datos obtenidos directamente del servidor."}
+    except Exception:
+        return {"server": server, "players": [], "players_available": False,
+                "message": "Este servidor no facilita la lista de jugadores mediante A2S en este momento."}
+
 @app.get("/api/servers")
 async def servers(force: bool = Query(False)):
     if force: _cache["at"] = 0

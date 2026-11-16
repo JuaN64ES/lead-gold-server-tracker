@@ -85,11 +85,32 @@ function render(){
   if(occupancy==="notfull")rows=rows.filter(s=>s.players<s.max_players);
   rows.sort((a,b)=>sort==="name"?a.name.localeCompare(b.name):b.players-a.players);
   $("serverRows").innerHTML=rows.map(s=>{
-    return `<tr><td><div class="server-cell"><span class="status-dot"></span><div><span class="server-name">${esc(s.name)}</span><span class="server-address">${esc(s.address)}</span></div></div></td><td><span class="map-name">${esc(s.map)}</span></td><td><span class="players">${s.players}<span> / ${s.max_players}</span></span></td></tr>`;
+    return `<tr class="server-row" data-address="${esc(s.address)}" tabindex="0" role="button" aria-label="Ver detalles de ${esc(s.name)}"><td><div class="server-cell"><span class="status-dot"></span><div><span class="server-name">${esc(s.name)}</span><span class="server-address">${esc(s.address)}</span></div></div></td><td><span class="map-name">${esc(s.map)}</span></td><td><span class="players">${s.players}<span> / ${s.max_players}</span></span></td></tr>`;
   }).join("");
   $("emptyState").hidden=rows.length!==0;
   $("resultCount").textContent=`${rows.length} servidor${rows.length===1?"":"es"}`;
 }
+function formatDuration(seconds){
+  const mins=Math.floor((Number(seconds)||0)/60), hours=Math.floor(mins/60);
+  return hours?`${hours} h ${mins%60} min`:`${mins} min`;
+}
+function closeServerModal(){const modal=$("serverModal");modal.hidden=true;document.body.classList.remove("modal-open");}
+async function showServerDetails(address){
+  const modal=$("serverModal"), content=$("serverModalContent");
+  modal.hidden=false;document.body.classList.add("modal-open");
+  content.innerHTML='<div class="server-detail-loading">Consultando jugadores conectados…</div>';
+  try{
+    const res=await fetch(`/api/server-players?address=${encodeURIComponent(address)}`,{cache:"no-store"});
+    const data=await res.json(); if(!res.ok)throw new Error(data.detail||"No se pudieron consultar los detalles.");
+    const server=data.server||{};
+    const stats=`<div class="server-detail-stats"><div><span>JUGADORES</span><strong>${Number(server.players)||0} / ${Number(server.max_players)||0}</strong></div><div><span>MAPA</span><strong>${esc(server.map||"Desconocido")}</strong></div><div><span>RESPUESTA</span><strong>${server.response_ms==null?"—":`${esc(server.response_ms)} ms`}</strong></div></div>`;
+    const roster=data.players_available
+      ? (data.players.length?`<div class="player-roster">${data.players.map((player,index)=>`<div class="player-roster-row"><span class="player-rank">${index+1}</span><strong>${esc(player.name)}</strong><span class="player-score">${esc(player.score)} pts</span><span class="player-duration">${formatDuration(player.duration_seconds)}</span></div>`).join("")}</div>`:'<p class="server-detail-empty">El servidor responde, pero ahora mismo no devuelve nombres de jugadores.</p>')
+      : `<p class="server-detail-empty">${esc(data.message||"No se ha podido obtener la lista de jugadores.")}</p>`;
+    content.innerHTML=`<div class="server-detail-heading"><div><span class="server-detail-kicker">DETALLES DEL SERVIDOR</span><h3>${esc(server.name||"Servidor")}</h3><p>${esc(server.address||address)} · ${esc(server.game||"Lead and Gold")}</p></div><span class="server-detail-online">● ONLINE</span></div>${stats}<h4>JUGADORES CONECTADOS ${data.players_available?`(${data.players.length})`:""}</h4>${roster}<p class="server-detail-note">Puntuación y tiempo son los datos que el servidor publique mediante el protocolo A2S; pueden no estar disponibles en todos los servidores.</p>`;
+  }catch(error){content.innerHTML=`<p class="server-detail-empty">${esc(error.message||"No se pudieron cargar los detalles.")}</p>`;}
+}
+
 async function load(force=false){
   const btn=$("refreshBtn");btn.disabled=true;btn.innerHTML="<span>↻</span> Buscando…";
   $("notice").className="notice";$("notice").textContent="Consultando el directorio de servidores de Steam…";
@@ -178,6 +199,11 @@ $("meetupForm").addEventListener("submit",async e=>{
 });
 $("cancelMeetupEdit").addEventListener("click",cancelMeetupEdit);
 ["search","occupancy","sort"].forEach(id=>$(id).addEventListener(id==="search"?"input":"change",render));
+$("serverRows").addEventListener("click",event=>{const row=event.target.closest(".server-row");if(row)showServerDetails(row.dataset.address);});
+$("serverRows").addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){const row=event.target.closest(".server-row");if(row){event.preventDefault();showServerDetails(row.dataset.address);}}});
+$("serverModalClose").addEventListener("click",closeServerModal);
+$("serverModal").addEventListener("click",event=>{if(event.target===$("serverModal"))closeServerModal();});
+document.addEventListener("keydown",event=>{if(event.key==="Escape"&&!$("serverModal").hidden)closeServerModal();});
 $("refreshBtn").addEventListener("click",()=>load(true));
 $("notifyBtn").addEventListener("click",enablePush);
 async function updatePushButtonState(){

@@ -92,3 +92,31 @@ body{
 .notify-btn:hover{border-color:#e6a34b;background:#3a2b19}
 .notify-btn:disabled{opacity:.65;cursor:wait}
 @media(max-width:480px){.server-actions{width:100%;gap:12px}.server-actions .refresh{width:auto;min-width:0;flex:1}}
+
+
+/* Clickable server rows and player details modal */
+.server-row{cursor:pointer;transition:background .15s ease}
+.server-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.server-row:hover .server-name{color:#f0b45e}
+.server-modal[hidden]{display:none}
+.server-modal{position:fixed;inset:0;z-index:1000;background:#050a10d9;display:grid;place-items:center;padding:20px;overflow-y:auto}
+.server-modal-panel{width:min(680px,100%);max-height:min(85vh,800px);overflow-y:auto;background:#101a27;border:1px solid #35465c;border-radius:13px;box-shadow:0 24px 80px #000b;padding:22px}
+.server-modal-top{display:flex;align-items:center;justify-content:space-between;color:#d4a15d;font-size:10px;font-weight:800;letter-spacing:1.5px;padding-bottom:14px;border-bottom:1px solid #263344}
+.server-modal-close{border:1px solid #35465c;background:#1d2a3a;color:#eaf1f8;border-radius:7px;width:34px;height:34px;font-size:23px;line-height:1;cursor:pointer}
+.server-detail-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:20px 0 15px}
+.server-detail-kicker{font-size:9px;color:#8291a5;letter-spacing:1.4px;font-weight:800}
+.server-detail-heading h3{font-size:22px;margin:6px 0;color:#eef3f8;overflow-wrap:anywhere}
+.server-detail-heading p{margin:0;color:#8291a5;font-size:11px;overflow-wrap:anywhere}
+.server-detail-online{font-size:10px;color:#73d5a0;white-space:nowrap;padding-top:8px}
+.server-detail-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:8px 0 22px}
+.server-detail-stats>div{background:#0b121c;border:1px solid #263344;border-radius:8px;padding:12px;min-width:0}
+.server-detail-stats span{display:block;color:#8291a5;font-size:8px;font-weight:800;letter-spacing:1px;margin-bottom:7px}
+.server-detail-stats strong{display:block;color:#eaf1f8;font-size:14px;overflow-wrap:anywhere}
+.server-modal-panel h4{font-size:10px;color:#d4a15d;letter-spacing:1.3px;margin:0 0 10px}
+.player-roster{border:1px solid #263344;border-radius:8px;overflow:hidden}
+.player-roster-row{display:grid;grid-template-columns:28px minmax(0,1fr) 75px 75px;gap:10px;align-items:center;padding:11px 12px;border-bottom:1px solid #202d3d;font-size:12px}
+.player-roster-row:last-child{border-bottom:0}.player-rank{color:#8291a5}.player-roster-row strong{overflow-wrap:anywhere;color:#eaf1f8}.player-score,.player-duration{color:#a9b8c9;text-align:right;font-variant-numeric:tabular-nums}
+.server-detail-loading,.server-detail-empty{padding:22px 8px;color:#a9b8c9;text-align:center;font-size:12px;line-height:1.6}
+.server-detail-note{font-size:10px;color:#718197;line-height:1.5;margin:14px 0 0}
+body.modal-open{overflow:hidden}
+@media(max-width:520px){.server-modal{padding:10px}.server-modal-panel{padding:16px}.server-detail-stats{grid-template-columns:1fr 1fr}.server-detail-stats>div:last-child{grid-column:1/-1}.player-roster-row{grid-template-columns:20px minmax(0,1fr) 58px;gap:7px}.player-duration{grid-column:2/-1;text-align:left;font-size:10px}}
