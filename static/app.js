@@ -55,19 +55,36 @@ function render(){
   if(occupancy==="players")rows=rows.filter(s=>s.players>0);
   if(occupancy==="empty")rows=rows.filter(s=>s.players===0);
   if(occupancy==="notfull")rows=rows.filter(s=>s.players<s.max_players);
-  rows.sort((a,b)=>sort==="name"?a.name.localeCompare(b.name):sort==="ping"?(a.response_ms??a.ping_ms??99999)-(b.response_ms??b.ping_ms??99999):b.players-a.players);
+  rows.sort((a,b)=>sort==="name"?a.name.localeCompare(b.name):b.players-a.players);
   $("serverRows").innerHTML=rows.map(s=>{
-    const responseMs=s.response_ms??s.ping_ms;
-    const ping=responseMs==null?"—":`${Math.round(responseMs)} ms`;
-    const pingTitle="Tiempo de respuesta de la consulta A2S desde el servidor de la web; no es el ping del jugador dentro del juego.";
-    const pc="";
-    return `<tr><td><div class="server-cell"><span class="status-dot"></span><div><span class="server-name">${esc(s.name)}</span><span class="server-address">${esc(s.address)}</span></div></div></td><td><span class="map-name">${esc(s.map)}</span></td><td><span class="players">${s.players}<span> / ${s.max_players}</span></span></td><td><span class="ping ${pc}" title="${pingTitle}">${ping}</span></td><td><button class="join" data-address="${esc(s.address)}">Copiar IP</button></td></tr>`;
+    return `<tr><td><div class="server-cell"><span class="status-dot"></span><div><span class="server-name">${esc(s.name)}</span><span class="server-address">${esc(s.address)}</span></div></div></td><td><span class="map-name">${esc(s.map)}</span></td><td><span class="players">${s.players}<span> / ${s.max_players}</span></span></td><td><button class="join" data-address="${esc(s.address)}" title="Abrir Lead and Gold e intentar conectar con este servidor">▶ JUGAR</button></td></tr>`;
   }).join("");
   $("emptyState").hidden=rows.length!==0;
   $("resultCount").textContent=`${rows.length} servidor${rows.length===1?"":"es"}`;
   document.querySelectorAll(".join").forEach(b=>b.addEventListener("click",async()=>{
-    try{await navigator.clipboard.writeText(b.dataset.address);b.textContent="Copiado ✓";setTimeout(()=>b.textContent="Copiar IP",1400);}
-    catch{b.textContent=b.dataset.address;}
+    const address = (b.dataset.address || "").trim();
+    if (!/^[a-zA-Z0-9.\\-\\[\\]:]+$/.test(address) || !address.includes(":")) {
+      alert("La dirección de este servidor no parece válida.");
+      return;
+    }
+    // Steam's connect URI asks the installed Steam client to join this game server.
+    // The game-specific direct-join behavior must still be verified on a player's PC.
+    const steamUrl = `steam://connect/${address}`;
+    const original = b.textContent;
+    b.textContent = "Abriendo Steam…";
+    window.location.href = steamUrl;
+    // Keep a manual fallback in case the browser/Steam client does not handle the URI.
+    setTimeout(async()=>{
+      try {
+        await navigator.clipboard.writeText(address);
+        b.textContent = "IP copiada · prueba Steam";
+        b.title = `Si no se abrió el juego, pega esta dirección en el navegador de servidores: ${address}`;
+      } catch {
+        b.textContent = "Steam · " + address;
+        b.title = `Si no se abrió el juego, usa esta dirección: ${address}`;
+      }
+      setTimeout(()=>{ b.textContent = original; }, 3500);
+    }, 1600);
   }));
 }
 async function load(force=false){
@@ -85,7 +102,7 @@ async function load(force=false){
     else if(!allServers.length){$("notice").textContent="Consulta completada. Steam no ha devuelto servidores activos para este juego en este momento.";}
     else{$("notice").textContent=`${allServers.length} servidor(es) respondieron correctamente · Datos reales`;}
     checkThreshold(allServers);render();
-  }catch(e){$("notice").className="notice error";$("notice").textContent="No se pudo conectar con el backend."; $("serverRows").innerHTML='<tr><td colspan="5" class="empty">Servicio temporalmente no disponible.</td></tr>';}
+  }catch(e){$("notice").className="notice error";$("notice").textContent="No se pudo conectar con el backend."; $("serverRows").innerHTML='<tr><td colspan="4" class="empty">Servicio temporalmente no disponible.</td></tr>';}
   finally{btn.disabled=false;btn.innerHTML="<span>↻</span> Actualizar";}
 }
 async function loadMeetups(){
