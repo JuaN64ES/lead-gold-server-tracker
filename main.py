@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 APP_ID = 42120
 STEAM_API_KEY = os.getenv("STEAM_API_KEY", "").strip()
 MAX_SERVERS = int(os.getenv("MAX_SERVERS", "100"))
-QUERY_TIMEOUT = float(os.getenv("QUERY_TIMEOUT", "2.0"))
+QUERY_TIMEOUT = float(os.getenv("QUERY_TIMEOUT", "4.0"))
 REFRESH_SECONDS = int(os.getenv("REFRESH_SECONDS", "45"))
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 DB_PATH = os.getenv("COMMUNITY_DB_PATH", "/tmp/leadgold-community.sqlite3")
@@ -220,17 +220,55 @@ async def get_master_servers():
 
 def query_one(server):
     address = server.get("addr", "")
-    if not address or ":" not in address: return None
+    if not address or ":" not in address:
+        return None
     host, port_s = address.rsplit(":", 1)
     try:
-        port = int(port_s); started = time.perf_counter()
+        port = int(port_s)
+    except ValueError:
+        return None
+
+    # Datos base entregados por la API de Steam como respaldo si el puerto UDP A2S está cerrado
+    fallback_players = int(server.get("players", 0) or 0)
+    fallback_max = int(server.get("max_players", 0) or 0)
+    fallback_name = server.get("name") or "Servidor de Lead and Gold"
+    fallback_map = server.get("map") or "Desconocido"
+
+    try:
+        started = time.perf_counter()
         info = a2s.info((host, port), timeout=QUERY_TIMEOUT)
         ping_ms = round((time.perf_counter() - started) * 1000, 1)
-        return {"id": address, "name": info.server_name or "Servidor sin nombre",
-            "map": info.map_name or "Desconocido", "players": int(info.player_count),
-            "max_players": int(info.max_players), "response_ms": ping_ms, "ping_ms": ping_ms, "latency_type": "a2s_backend_response", "address": address,
-            "game": info.game or "Lead and Gold", "online": True, "last_seen": int(time.time())}
-    except Exception: return None
+        a2s_players = int(info.player_count)
+        real_players = fallback_players if (a2s_players == 0 and fallback_players > 0) else a2s_players
+        return {
+            "id": address,
+            "name": info.server_name or fallback_name,
+            "map": info.map_name or fallback_map,
+            "players": real_players,
+            "max_players": int(info.max_players) or fallback_max,
+            "response_ms": ping_ms,
+            "ping_ms": ping_ms,
+            "latency_type": "a2s_backend_response",
+            "address": address,
+            "game": info.game or "Lead and Gold",
+            "online": True,
+            "last_seen": int(time.time())
+        }
+    except Exception:
+        return {
+            "id": address,
+            "name": fallback_name,
+            "map": fallback_map,
+            "players": fallback_players,
+            "max_players": fallback_max,
+            "response_ms": None,
+            "ping_ms": None,
+            "latency_type": "steam_master_fallback",
+            "address": address,
+            "game": "Lead and Gold",
+            "online": True,
+            "last_seen": int(time.time())
+        }
 
 async def refresh():
     async with _lock:
@@ -298,16 +336,34 @@ async def server_players(address: str = Query(..., min_length=3, max_length=128)
     try:
         raw_players = await asyncio.to_thread(a2s.players, (host, port), timeout=QUERY_TIMEOUT)
         players = [{
-            "name": str(getattr(player, "name", "") or "Jugador")[:64],
+            "name": str(getattr(player, "name", "") or "Jugador sin nombre")[:64],
             "score": int(getattr(player, "score", 0) or 0),
             "duration_seconds": max(0, int(getattr(player, "duration", 0) or 0))
         } for player in raw_players]
         players.sort(key=lambda player: (-player["score"], player["name"].lower()))
-        return {"server": server, "players": players, "players_available": True,
-                "message": "Datos obtenidos directamente del servidor."}
+
+        # Completar si A2S_INFO reporta más jugadores que nombres devuelve A2S_PLAYER
+        missing_count = max(0, int(server.get("players", 0)) - len(players))
+        for _ in range(missing_count):
+            players.append({
+                "name": "Jugador conectando / oculto por Steam",
+                "score": 0,
+                "duration_seconds": 0
+            })
+
+        return {
+            "server": server,
+            "players": players,
+            "players_available": True,
+            "message": "Datos obtenidos directamente del servidor."
+        }
     except Exception:
-        return {"server": server, "players": [], "players_available": False,
-                "message": "Este servidor no facilita la lista de jugadores mediante A2S en este momento."}
+        return {
+            "server": server,
+            "players": [],
+            "players_available": False,
+            "message": "Este servidor no facilita la lista de jugadores mediante A2S en este momento."
+        }
 
 @app.get("/api/servers")
 async def servers(force: bool = Query(False)):
