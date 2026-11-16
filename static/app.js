@@ -68,9 +68,9 @@ function render(){
       alert("Este servidor no tiene una dirección de conexión disponible.");
       return;
     }
-    // Steam's connect URI asks the installed Steam client to join this game server.
-    // The game-specific direct-join behavior must still be verified on a player's PC.
-    const steamUrl = `steam://connect/${address}`;
+    // Launch Lead and Gold explicitly, passing the server address as a connect argument.
+    // This avoids Steam's generic server-browser connect handler, which returned an invalid App ID.
+    const steamUrl = `steam://run/42120//+connect%20${encodeURIComponent(address)}`;
     const original = b.textContent;
     b.textContent = "Abriendo Steam…";
     window.location.href = steamUrl;
