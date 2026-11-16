@@ -7,7 +7,6 @@ Web pública para consultar servidores de **Lead & Gold: Gangs of the Wild West*
 - Backend FastAPI que consulta Steam Game Servers Service.
 - Consultas A2S_INFO a los servidores encontrados.
 - Nombre, mapa, jugadores, slots y dirección.
-- Consulta opcional A2S_PLAYER para mostrar nombres, duración conectada y puntuación cuando el servidor lo permite.
 - Filtros, ordenación, contador y actualización automática.
 - No utiliza servidores ni estadísticas ficticias.
 
@@ -49,6 +48,6 @@ También puedes desplegar el Dockerfile en cualquier hosting compatible con cont
 ## Consideraciones importantes
 - El servidor de hosting debe permitir tráfico UDP saliente para consultas A2S. Algunos proveedores o planes bloquean UDP; si ocurre, la web puede descubrir servidores en Steam pero no obtener detalles A2S hasta cambiar a un proveedor que permita UDP.
 - El directorio de Steam puede no devolver servidores si no hay ninguno publicado/activo o si el filtro de App ID no coincide con el registro del servidor.
-- El valor mostrado como respuesta A2S es el tiempo de respuesta de la consulta medido desde el backend de Render. No equivale al ping de red que mide el cliente del juego. La consulta A2S_PLAYER puede no estar habilitada en todos los servidores. La duración y puntuación son los campos que ofrece A2S; no se pueden deducir bajas, muertes o asistencias si el servidor no los publica.
+- La columna «Respuesta A2S» mide el tiempo que tarda una consulta A2S desde el backend alojado (Render). No es el ping real del jugador dentro del juego y puede ser muy distinto. Un navegador web normal no puede enviar las consultas UDP/A2S directamente al servidor del juego; por eso, sin instalar un auxiliar en el PC, no es posible obtener desde la página el mismo ping que calcula el cliente del juego. El campo `response_ms` identifica esta medición; `ping_ms` se conserva como alias de compatibilidad.
 - La API key debe mantenerse como secreto del servidor.
 - La web es un proyecto comunitario no oficial y no está afiliada a Valve ni Fatshark.

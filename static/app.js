@@ -49,33 +49,23 @@ async function enableBell(){
   $("bellLabel").textContent = permission==="granted" ? "Avisos activados" : "Avisos desactivados";
   if(permission==="granted") new Notification("Lead and Gold Multiplayer", {body:"Te avisaremos cuando un servidor supere los 5 jugadores mientras esta página esté abierta."});
 }
-function formatDuration(seconds){
-  const total=Math.max(0,Number(seconds)||0), h=Math.floor(total/3600), m=Math.floor((total%3600)/60);
-  return h?`${h} h ${m} min`:`${m} min`;
-}
 function render(){
   const q=$("search").value.trim().toLowerCase(), occupancy=$("occupancy").value, sort=$("sort").value;
   let rows=allServers.filter(s=>(s.name+" "+s.map+" "+s.address).toLowerCase().includes(q));
   if(occupancy==="players")rows=rows.filter(s=>s.players>0);
   if(occupancy==="empty")rows=rows.filter(s=>s.players===0);
   if(occupancy==="notfull")rows=rows.filter(s=>s.players<s.max_players);
-  rows.sort((a,b)=>sort==="name"?a.name.localeCompare(b.name):sort==="ping"?(a.ping_ms??99999)-(b.ping_ms??99999):b.players-a.players);
-  $("serverRows").innerHTML=rows.map((s,index)=>{
-    const ping=s.ping_ms==null?"—":`${Math.round(s.ping_ms)} ms`;
-    const pc=s.ping_ms==null?"":s.ping_ms<80?"good":s.ping_ms<150?"mid":"";
-    const key=`server-${index}`;
-    const people=Array.isArray(s.player_list)?s.player_list:[];
-    const details=s.player_list_available
-      ? (people.length ? `<div class="server-player-grid">${people.map(p=>`<div class="server-player"><strong>${esc(p.name||"Jugador")}</strong><span>${formatDuration(p.duration_seconds)} en servidor</span><span>Puntuación: ${Number(p.score)||0}</span></div>`).join("")}</div>` : `<div class="player-list-empty">La consulta A2S no ha devuelto jugadores con nombre.</div>`)
-      : `<div class="player-list-empty">Este servidor no facilita la lista de jugadores. Solo podemos confirmar el total conectado (${s.players}).</div>`;
-    return `<tr><td><div class="server-cell"><span class="status-dot"></span><div><span class="server-name">${esc(s.name)}</span><span class="server-address">${esc(s.address)}</span></div></div></td><td><span class="map-name">${esc(s.map)}</span></td><td><span class="players">${s.players}<span> / ${s.max_players}</span></span></td><td><span class="ping ${pc}" title="Tiempo de respuesta A2S medido desde Render; no equivale al ping del juego">${ping}</span></td><td><button class="join player-toggle" data-target="${key}">Ver jugadores</button> <button class="join copy-ip" data-address="${esc(s.address)}">Copiar IP</button></td></tr><tr id="${key}" class="player-details-row" hidden><td colspan="5"><div class="player-details"><strong>Jugadores conectados (${people.length}/${s.players})</strong>${details}</div></td></tr>`;
+  rows.sort((a,b)=>sort==="name"?a.name.localeCompare(b.name):sort==="ping"?(a.response_ms??a.ping_ms??99999)-(b.response_ms??b.ping_ms??99999):b.players-a.players);
+  $("serverRows").innerHTML=rows.map(s=>{
+    const responseMs=s.response_ms??s.ping_ms;
+    const ping=responseMs==null?"—":`${Math.round(responseMs)} ms`;
+    const pingTitle="Tiempo de respuesta de la consulta A2S desde el servidor de la web; no es el ping del jugador dentro del juego.";
+    const pc="";
+    return `<tr><td><div class="server-cell"><span class="status-dot"></span><div><span class="server-name">${esc(s.name)}</span><span class="server-address">${esc(s.address)}</span></div></div></td><td><span class="map-name">${esc(s.map)}</span></td><td><span class="players">${s.players}<span> / ${s.max_players}</span></span></td><td><span class="ping ${pc}" title="${pingTitle}">${ping}</span></td><td><button class="join" data-address="${esc(s.address)}">Copiar IP</button></td></tr>`;
   }).join("");
   $("emptyState").hidden=rows.length!==0;
   $("resultCount").textContent=`${rows.length} servidor${rows.length===1?"":"es"}`;
-  document.querySelectorAll(".player-toggle").forEach(b=>b.addEventListener("click",()=>{
-    const panel=$(b.dataset.target); panel.hidden=!panel.hidden; b.textContent=panel.hidden?"Ver jugadores":"Ocultar jugadores";
-  }));
-  document.querySelectorAll(".copy-ip").forEach(b=>b.addEventListener("click",async()=>{
+  document.querySelectorAll(".join").forEach(b=>b.addEventListener("click",async()=>{
     try{await navigator.clipboard.writeText(b.dataset.address);b.textContent="Copiado ✓";setTimeout(()=>b.textContent="Copiar IP",1400);}
     catch{b.textContent=b.dataset.address;}
   }));

@@ -145,24 +145,9 @@ def query_one(server):
         port = int(port_s); started = time.perf_counter()
         info = a2s.info((host, port), timeout=QUERY_TIMEOUT)
         ping_ms = round((time.perf_counter() - started) * 1000, 1)
-        # A2S_PLAYER is optional: some servers disable it or do not expose player details.
-        player_rows = []
-        players_available = False
-        try:
-            raw_players = a2s.players((host, port), timeout=QUERY_TIMEOUT)
-            players_available = True
-            for player in raw_players:
-                player_rows.append({
-                    "name": str(getattr(player, "name", "") or "Jugador")[:64],
-                    "score": int(getattr(player, "score", 0) or 0),
-                    "duration_seconds": max(0, int(getattr(player, "duration", 0) or 0))
-                })
-        except Exception:
-            pass
         return {"id": address, "name": info.server_name or "Servidor sin nombre",
             "map": info.map_name or "Desconocido", "players": int(info.player_count),
-            "max_players": int(info.max_players), "ping_ms": ping_ms, "address": address,
-            "player_list": player_rows, "player_list_available": players_available,
+            "max_players": int(info.max_players), "response_ms": ping_ms, "ping_ms": ping_ms, "latency_type": "a2s_backend_response", "address": address,
             "game": info.game or "Lead and Gold", "online": True, "last_seen": int(time.time())}
     except Exception: return None
 
