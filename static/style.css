@@ -176,3 +176,14 @@ body.modal-open{overflow:hidden}
     margin:0 auto 2px;
   }
 }
+
+/* Eliminación definitiva de los personajes decorativos del encabezado */
+.hero-characters,
+.hero-top .hero-characters,
+.hero-top::before,
+.hero-top::after{
+  display:none !important;
+  visibility:hidden !important;
+  content:none !important;
+  background-image:none !important;
+}

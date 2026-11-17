@@ -77,6 +77,16 @@ def init_db():
     with db() as conn:
         conn.execute(meetup_sql)
         conn.execute(vote_sql)
+        # One-time reset requested for the community board: remove existing meetups and votes.
+        conn.execute("""CREATE TABLE IF NOT EXISTS app_migrations (
+            migration_id TEXT PRIMARY KEY, applied_at TEXT NOT NULL)""")
+        reset_id = "2026-11-17-clear-existing-meetups"
+        applied = conn.execute("SELECT migration_id FROM app_migrations WHERE migration_id=?", (reset_id,)).fetchone()
+        if not applied:
+            conn.execute("DELETE FROM votes")
+            conn.execute("DELETE FROM meetups")
+            conn.execute("INSERT INTO app_migrations(migration_id, applied_at) VALUES(?,?)",
+                         (reset_id, time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())))
         # Safe migration: store the browser identity that created each meetup.
         if DATABASE_URL:
             conn.execute("ALTER TABLE meetups ADD COLUMN IF NOT EXISTS creator_id TEXT NOT NULL DEFAULT ''")
