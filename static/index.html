@@ -54,7 +54,9 @@
       <p class="community-intro">Propón una partida, comparte el día y la hora, y apunta si te unes.</p>
       <div class="player-profile">
         <label for="playerName">TU APODO EN LA COMUNIDAD</label>
-        <div class="profile-edit"><input id="playerName" maxlength="24" placeholder="Ej. BillyTheKid" autocomplete="nickname"><span id="profileStatus">Se mostrará junto a tus votos</span></div>
+        <div class="profile-edit"><input id="playerName" maxlength="24" placeholder="Ej. BillyTheKid" autocomplete="nickname"><button id="registerNick" type="button" class="refresh">Reservar nick</button><span id="profileStatus">Elige un nick único para toda la web</span></div>
+        <div class="profile-edit" style="margin-top:10px"><input id="identityCodeInput" maxlength="200" placeholder="LG-… Código privado para recuperar tu nick" autocomplete="off"><button id="recoverNick" type="button" class="refresh">Recuperar nick</button></div>
+        <p class="profile-hint">Al reservar tu nick recibirás un código privado. Guárdalo: será la llave para usar tu identidad en otros dispositivos.</p>
       </div>
       <div class="avatar-picker">
         <div class="avatar-picker-heading"><strong>ELIGE TU PERSONAJE FAVORITO</strong><span>Tu avatar aparecerá junto a tu nombre en las quedadas y votaciones.</span></div>

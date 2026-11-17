@@ -1,10 +1,7 @@
 const $ = id => document.getElementById(id);
 let allServers = [], refreshTimer, editingMeetupId = null;
-const voterId = (() => {
-  let id = localStorage.getItem("lg_voter_id");
-  if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : "lg-"+Date.now()+"-"+Math.random().toString(36).slice(2)); localStorage.setItem("lg_voter_id", id); }
-  return id;
-})();
+let voterId = localStorage.getItem("lg_identity_id") || "";
+let identityCode = localStorage.getItem("lg_identity_code") || "";
 const playerNameKey = "lg_player_name";
 const avatarKey = "lg_player_avatar";
 const validAvatars = ["blaster","deputy","gunslinger","trapper"];
@@ -28,8 +25,36 @@ function currentPlayerName(){ return (localStorage.getItem(playerNameKey)||"").t
 function savePlayerName(){
   const value=$("playerName").value.trim().replace(/\s+/g," ").slice(0,24);
   $("playerName").value=value;
-  if(value){localStorage.setItem(playerNameKey,value);$("profileStatus").textContent="Apodo guardado en este dispositivo";}
-  else{localStorage.removeItem(playerNameKey);$("profileStatus").textContent="Escribe un apodo para votar";}
+  if(value && !voterId) $("profileStatus").textContent="Pulsa «Reservar nick» para registrarlo en toda la web";
+}
+async function registerNick(){
+  const nick=$("playerName").value.trim().replace(/\s+/g," ");
+  if(nick.length<2){alert("Escribe un nick de al menos 2 caracteres.");return;}
+  const button=$("registerNick");button.disabled=true;button.textContent="Reservando…";
+  try{
+    const res=await fetch("/api/identity/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({nick})});
+    const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.detail||"No se pudo reservar el nick.");
+    activateIdentity(data.identity_id,data.code,data.nick);
+    alert("¡Nick reservado!\n\nTu código privado es:\n\n"+data.code+"\n\nGuárdalo en un lugar seguro. No se volverá a mostrar y permite recuperar tu nick en otro dispositivo.");
+  }catch(err){alert(err.message);}finally{button.disabled=false;button.textContent="Reservar nick";}
+}
+function activateIdentity(id,code,nick){
+  voterId=id;identityCode=code||identityCode;
+  localStorage.setItem("lg_identity_id",id);if(code)localStorage.setItem("lg_identity_code",code);
+  localStorage.setItem(playerNameKey,nick);$("playerName").value=nick;$("playerName").disabled=true;
+  $("profileStatus").textContent="✓ Nick protegido y reservado globalmente";
+  loadMeetups();
+}
+async function recoverNick(){
+  const code=$("identityCodeInput").value.trim();
+  if(!code){alert("Introduce tu código privado.");return;}
+  const button=$("recoverNick");button.disabled=true;button.textContent="Verificando…";
+  try{
+    const res=await fetch("/api/identity/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code})});
+    const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.detail||"No se pudo recuperar la identidad.");
+    activateIdentity(data.identity_id,code,data.nick);$("identityCodeInput").value="";
+    alert("Identidad recuperada: "+data.nick);
+  }catch(err){alert(err.message);}finally{button.disabled=false;button.textContent="Recuperar nick";}
 }
 function esc(s){return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function formatTime(ts){if(!ts)return "Sin datos";return new Date(ts*1000).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"});}
@@ -163,7 +188,7 @@ function cancelMeetupEdit(){
 async function deleteMeetup(id){
   if(!confirm("¿Seguro que quieres eliminar esta quedada? También se borrarán sus votos."))return;
   try{
-    const res=await fetch(`/api/meetups/${id}?creator_id=${encodeURIComponent(voterId)}`,{method:"DELETE"});
+    const res=await fetch(`/api/meetups/${id}?creator_id=${encodeURIComponent(voterId)}&identity_code=${encodeURIComponent(identityCode)}`,{method:"DELETE"});
     const data=await res.json().catch(()=>({})); if(!res.ok)throw new Error(data.detail||"No se pudo eliminar la quedada.");
     if(String(editingMeetupId)===String(id))cancelMeetupEdit();
     await loadMeetups();
@@ -171,10 +196,10 @@ async function deleteMeetup(id){
 }
 async function sendVote(button){
   const name=currentPlayerName();
-  if(!name){$("playerName").focus();alert("Antes de votar, escribe tu apodo en el apartado de comunidad.");return;}
+  if(!name||!voterId||!identityCode){$("playerName").focus();alert("Primero reserva tu nick o recupera tu identidad con tu código privado.");return;}
   button.disabled=true;
   try{
-    const res=await fetch(`/api/meetups/${button.dataset.id}/vote`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({voter_id:voterId,voter_name:name,avatar:currentAvatar(),vote:Number(button.dataset.vote)})});
+    const res=await fetch(`/api/meetups/${button.dataset.id}/vote`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({identity_code:identityCode,voter_id:voterId,voter_name:name,avatar:currentAvatar(),vote:Number(button.dataset.vote)})});
     if(!res.ok)throw new Error("No se pudo guardar el voto");
     await loadMeetups();
   }catch(e){alert(e.message);}finally{button.disabled=false;}
@@ -182,14 +207,18 @@ async function sendVote(button){
 $("playerName").value=currentPlayerName();
 setAvatar(currentAvatar());
 document.querySelectorAll(".avatar-option").forEach(b=>b.addEventListener("click",()=>setAvatar(b.dataset.avatar)));
-if(currentPlayerName())$("profileStatus").textContent="Apodo guardado en este dispositivo";
+if(currentPlayerName() && voterId && identityCode){$("profileStatus").textContent="✓ Nick protegido y reservado globalmente";$("playerName").disabled=true;}
+else if(currentPlayerName())$("profileStatus").textContent="Este apodo aún no está reservado. Regístralo para protegerlo.";
 $("playerName").addEventListener("change",savePlayerName);
+$("registerNick").addEventListener("click",registerNick);
+$("recoverNick").addEventListener("click",recoverNick);
 $("playerName").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();savePlayerName();}});
 $("meetupForm").addEventListener("submit",async e=>{
   e.preventDefault();
   const title=$("meetupTitle").value.trim(); if(title.length<2)return;
   const button=$("meetupSubmit");button.disabled=true;button.textContent=editingMeetupId?"Guardando…":"Publicando…";
-  const payload={title,details:$("meetupDetails").value,event_at:$("meetupDate").value,creator_id:voterId};
+  if(!voterId||!identityCode){alert("Primero reserva tu nick o recupera tu identidad con tu código privado.");button.disabled=false;button.textContent="＋ Publicar quedada";return;}
+  const payload={title,details:$("meetupDetails").value,event_at:$("meetupDate").value,creator_id:voterId,identity_code:identityCode};
   try{
     const url=editingMeetupId?`/api/meetups/${editingMeetupId}`:"/api/meetups";
     const res=await fetch(url,{method:editingMeetupId?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});

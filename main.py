@@ -1,4 +1,4 @@
-import os, asyncio, time, sqlite3, json
+import os, asyncio, time, sqlite3, json, secrets, hashlib, re, uuid
 from typing import Any
 from contextlib import contextmanager
 import httpx
@@ -77,6 +77,14 @@ def init_db():
     with db() as conn:
         conn.execute(meetup_sql)
         conn.execute(vote_sql)
+        if DATABASE_URL:
+            conn.execute("""CREATE TABLE IF NOT EXISTS player_identities (
+                id TEXT PRIMARY KEY, nick TEXT NOT NULL, nick_key TEXT NOT NULL UNIQUE,
+                code_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL)""")
+        else:
+            conn.execute("""CREATE TABLE IF NOT EXISTS player_identities (
+                id TEXT PRIMARY KEY, nick TEXT NOT NULL, nick_key TEXT NOT NULL UNIQUE,
+                code_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL)""")
         # One-time reset requested for the community board: remove existing meetups and votes.
         conn.execute("""CREATE TABLE IF NOT EXISTS app_migrations (
             migration_id TEXT PRIMARY KEY, applied_at TEXT NOT NULL)""")
@@ -131,22 +139,44 @@ async def startup():
     init_db()
 
 class MeetupIn(BaseModel):
+    identity_code: str = Field(min_length=20, max_length=200)
     title: str = Field(min_length=2, max_length=100)
     details: str = Field(default="", max_length=500)
     event_at: str = Field(default="", max_length=40)
     creator_id: str = Field(min_length=8, max_length=80)
 
 class MeetupEditIn(BaseModel):
+    identity_code: str = Field(min_length=20, max_length=200)
     title: str = Field(min_length=2, max_length=100)
     details: str = Field(default="", max_length=500)
     event_at: str = Field(default="", max_length=40)
     creator_id: str = Field(min_length=8, max_length=80)
 
 class VoteIn(BaseModel):
+    identity_code: str = Field(min_length=20, max_length=200)
     voter_id: str = Field(min_length=8, max_length=80)
     voter_name: str = Field(min_length=1, max_length=24)
     vote: int
     avatar: str = Field(default="blaster", max_length=20)
+
+class IdentityRegisterIn(BaseModel):
+    nick: str = Field(min_length=1, max_length=24)
+
+class IdentityLoginIn(BaseModel):
+    code: str = Field(min_length=20, max_length=200)
+
+def normalize_nick(nick: str) -> str:
+    clean = " ".join(nick.split()).strip()
+    if not re.fullmatch(r"[\w .-]{2,24}", clean, flags=re.UNICODE):
+        raise HTTPException(400, "El nick debe tener entre 2 y 24 caracteres y solo puede contener letras, números, espacios, puntos o guiones.")
+    return clean
+
+def identity_from_code(conn, code: str):
+    digest = hashlib.sha256(code.strip().encode("utf-8")).hexdigest()
+    row = conn.execute("SELECT id, nick FROM player_identities WHERE code_hash=?", (digest,)).fetchone()
+    if not row:
+        raise HTTPException(403, "Código de identidad incorrecto. No se ha podido verificar tu nick.")
+    return row
 
 AVATARS = {"blaster", "deputy", "gunslinger", "trapper"}
 
@@ -384,6 +414,33 @@ async def servers(force: bool = Query(False)):
         "total_servers": len(data["servers"]), "total_players": sum(s["players"] for s in data["servers"]),
         "servers": data["servers"], "error": data["error"], "live_data": True}
 
+@app.post("/api/identity/register")
+async def register_identity(item: IdentityRegisterIn):
+    nick = normalize_nick(item.nick)
+    nick_key = nick.casefold()
+    code = "LG-" + secrets.token_urlsafe(27)
+    identity_id = str(uuid.uuid4())
+    digest = hashlib.sha256(code.encode("utf-8")).hexdigest()
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    with db() as conn:
+        try:
+            conn.execute("INSERT INTO player_identities(id,nick,nick_key,code_hash,created_at) VALUES(?,?,?,?,?)",
+                         (identity_id, nick, nick_key, digest, now))
+        except Exception as exc:
+            if "unique" in str(exc).lower() or "duplicate" in str(exc).lower():
+                raise HTTPException(409, "Ese nick ya está registrado. Elige otro o recupera tu identidad con tu código.")
+            raise
+    return {"ok": True, "identity_id": identity_id, "nick": nick, "code": code}
+
+@app.post("/api/identity/login")
+async def login_identity(item: IdentityLoginIn):
+    digest = hashlib.sha256(item.code.strip().encode("utf-8")).hexdigest()
+    with db() as conn:
+        row = conn.execute("SELECT id,nick FROM player_identities WHERE code_hash=?", (digest,)).fetchone()
+    if not row:
+        raise HTTPException(403, "No se reconoce ese código de identidad.")
+    return {"ok": True, "identity_id": row["id"], "nick": row["nick"]}
+
 @app.get("/api/meetups")
 async def list_meetups():
     with db() as conn:
@@ -405,8 +462,10 @@ async def create_meetup(item: MeetupIn):
     title = item.title.strip()
     if len(title) < 2: raise HTTPException(400, "Escribe un título un poco más largo.")
     with db() as conn:
+        identity = identity_from_code(conn, item.identity_code)
+        if identity["id"] != item.creator_id.strip(): raise HTTPException(403, "La identidad no coincide con el código.")
         sql = "INSERT INTO meetups(title,details,event_at,created_at,creator_id) VALUES(?,?,?,?,?)"
-        params = (title, item.details.strip(), item.event_at.strip(), time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), item.creator_id.strip())
+        params = (title, item.details.strip(), item.event_at.strip(), time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), identity["id"])
         if DATABASE_URL:
             meetup_id = conn.execute(sql + " RETURNING id", params).fetchone()["id"]
         else:
@@ -419,6 +478,8 @@ async def edit_meetup(meetup_id: int, item: MeetupEditIn):
     if len(title) < 2:
         raise HTTPException(400, "Escribe un título un poco más largo.")
     with db() as conn:
+        identity = identity_from_code(conn, item.identity_code)
+        if identity["id"] != item.creator_id.strip(): raise HTTPException(403, "La identidad no coincide con el código.")
         row = conn.execute("SELECT creator_id FROM meetups WHERE id=?", (meetup_id,)).fetchone()
         if not row:
             raise HTTPException(404, "Quedada no encontrada.")
@@ -429,8 +490,10 @@ async def edit_meetup(meetup_id: int, item: MeetupEditIn):
     return {"ok": True}
 
 @app.delete("/api/meetups/{meetup_id}")
-async def delete_meetup(meetup_id: int, creator_id: str = Query(..., min_length=8, max_length=80)):
+async def delete_meetup(meetup_id: int, creator_id: str = Query(..., min_length=8, max_length=80), identity_code: str = Query(..., min_length=20, max_length=200)):
     with db() as conn:
+        identity = identity_from_code(conn, identity_code)
+        if identity["id"] != creator_id.strip(): raise HTTPException(403, "La identidad no coincide con el código.")
         row = conn.execute("SELECT creator_id FROM meetups WHERE id=?", (meetup_id,)).fetchone()
         if not row:
             raise HTTPException(404, "Quedada no encontrada.")
@@ -445,6 +508,9 @@ async def vote_meetup(meetup_id: int, item: VoteIn):
     voter = item.voter_id.strip(); name = " ".join(item.voter_name.split()).strip()
     if not name: raise HTTPException(400, "Escribe tu apodo antes de votar.")
     with db() as conn:
+        identity = identity_from_code(conn, item.identity_code)
+        if identity["id"] != voter: raise HTTPException(403, "La identidad no coincide con el código.")
+        name = identity["nick"]
         exists = conn.execute("SELECT id FROM meetups WHERE id=?", (meetup_id,)).fetchone()
         if not exists: raise HTTPException(404, "Quedada no encontrada.")
         conn.execute("""INSERT INTO votes(meetup_id,voter_id,voter_name,avatar,vote) VALUES(?,?,?,?,?)

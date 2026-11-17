@@ -65,3 +65,10 @@ El endpoint `/api/health` actualiza la lista de servidores y detecta el cruce de
 Para activar avisos, abre la web en Chrome/Edge en Windows y pulsa **AVISAR** y acepta el permiso. El navegador debe permitir notificaciones de ese sitio. Los avisos push pueden mostrarse aunque la pestaña esté cerrada; el equipo y el navegador deben conservar la capacidad de recibir notificaciones push.
 
 La frecuencia práctica de detección con la configuración gratuita actual es de aproximadamente **1 minuto**, porque cron-job.org ejecuta como mínimo cada minuto en la configuración usada. El refresco de la página continúa siendo cada 45 segundos cuando está abierta.
+
+
+## Identidad única de la comunidad
+
+La comunidad permite reservar un nick global mediante `POST /api/identity/register`. El servidor genera un código privado aleatorio y almacena únicamente su hash SHA-256. El nick se normaliza y se reserva sin distinguir mayúsculas/minúsculas. El código se muestra una sola vez; debe guardarse para recuperar la identidad en otro dispositivo mediante `POST /api/identity/login`.
+
+Las acciones de crear/editar/eliminar quedadas y votar requieren el código privado, que se valida en el servidor. No se requiere correo electrónico ni cuenta tradicional. La identidad y los nicks se almacenan en la misma base de datos configurada por `DATABASE_URL` o `COMMUNITY_DB_PATH`.
