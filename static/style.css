@@ -120,3 +120,20 @@ body{
 .server-detail-note{font-size:10px;color:#718197;line-height:1.5;margin:14px 0 0}
 body.modal-open{overflow:hidden}
 @media(max-width:520px){.server-modal{padding:10px}.server-modal-panel{padding:16px}.server-detail-stats{grid-template-columns:1fr 1fr}.server-detail-stats>div:last-child{grid-column:1/-1}.player-roster-row{grid-template-columns:20px minmax(0,1fr) 58px;gap:7px}.player-duration{grid-column:2/-1;text-align:left;font-size:10px}}
+
+/* Nuevo logotipo principal: centrado en el bloque izquierdo del encabezado */
+.hero-logo-new{
+  width:min(480px, 100%);
+  height:220px;
+  object-fit:contain;
+  object-position:center;
+  margin:8px auto -10px;
+  filter:drop-shadow(0 8px 22px #0009);
+}
+@media(max-width:760px){
+  .hero-logo-new{
+    width:min(340px, 94%);
+    height:170px;
+    margin:0 auto 4px;
+  }
+}
