@@ -12,7 +12,7 @@
 body{
   background:
     linear-gradient(180deg,rgba(7,10,15,.70) 0%,rgba(8,12,18,.90) 42%,#0b1018 78%),
-    url('/static/img/western-sunset.jpg') center 5% / cover fixed no-repeat,
+    url('/static/img/western-sunset.jpg') center center / 100% 100% fixed no-repeat,
     #0b1018;
 }
 .shell{max-width:1240px}
