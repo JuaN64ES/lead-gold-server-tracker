@@ -126,11 +126,21 @@ def init_db():
                 endpoint TEXT PRIMARY KEY, subscription_json TEXT NOT NULL, created_at TEXT NOT NULL)""")
             conn.execute("""CREATE TABLE IF NOT EXISTS server_player_state (
                 address TEXT PRIMARY KEY, players INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL)""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS player_score_totals (
+                server_address TEXT NOT NULL, player_key TEXT NOT NULL, player_name TEXT NOT NULL,
+                total_points BIGINT NOT NULL DEFAULT 0, last_score BIGINT NOT NULL DEFAULT 0,
+                last_duration DOUBLE PRECISION NOT NULL DEFAULT 0, last_seen TEXT NOT NULL,
+                PRIMARY KEY(server_address, player_key))""")
         else:
             conn.execute("""CREATE TABLE IF NOT EXISTS push_subscriptions (
                 endpoint TEXT PRIMARY KEY, subscription_json TEXT NOT NULL, created_at TEXT NOT NULL)""")
             conn.execute("""CREATE TABLE IF NOT EXISTS server_player_state (
                 address TEXT PRIMARY KEY, players INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL)""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS player_score_totals (
+                server_address TEXT NOT NULL, player_key TEXT NOT NULL, player_name TEXT NOT NULL,
+                total_points INTEGER NOT NULL DEFAULT 0, last_score INTEGER NOT NULL DEFAULT 0,
+                last_duration REAL NOT NULL DEFAULT 0, last_seen TEXT NOT NULL,
+                PRIMARY KEY(server_address, player_key))""")
 
 app = FastAPI(title="Lead & Gold Multiplayer")
 
@@ -330,9 +340,14 @@ async def health():
     # cron-job.org calls this once per minute; refresh server data and detect
     # only the transition from 5-or-fewer to 6-or-more players.
     data = await refresh()
+    wanted_data = {"observed_players": 0}
     if not data["error"]:
         await process_server_alerts(data["servers"])
-    return {"ok": True, "game_app_id": APP_ID, "servers_checked": len(data["servers"]), "push_configured": bool(VAPID_PRIVATE_KEY)}
+        # The existing once-per-minute cron also samples scores, even when nobody has the site open.
+        wanted_data = await wanted()
+    return {"ok": True, "game_app_id": APP_ID, "servers_checked": len(data["servers"]),
+            "wanted_players_observed": wanted_data.get("observed_players", 0),
+            "push_configured": bool(VAPID_PRIVATE_KEY)}
 
 @app.get("/api/push/public-key")
 async def push_public_key():
@@ -375,26 +390,30 @@ async def server_players(address: str = Query(..., min_length=3, max_length=128)
 
     try:
         raw_players = await asyncio.to_thread(a2s.players, (host, port), timeout=QUERY_TIMEOUT)
-        players = [{
-            "name": str(getattr(player, "name", "") or "Jugador sin nombre")[:64],
-            "score": int(getattr(player, "score", 0) or 0),
-            "duration_seconds": max(0, int(getattr(player, "duration", 0) or 0))
-        } for player in raw_players]
-        players.sort(key=lambda player: (-player["score"], player["name"].lower()))
-
-        # Completar si A2S_INFO reporta más jugadores que nombres devuelve A2S_PLAYER
-        missing_count = max(0, int(server.get("players", 0)) - len(players))
-        for _ in range(missing_count):
+        players = []
+        for player in raw_players:
+            raw_score = getattr(player, "score", None)
+            try:
+                score = int(raw_score) if raw_score is not None else None
+            except (TypeError, ValueError):
+                score = None
+            raw_duration = getattr(player, "duration", 0)
+            try:
+                duration = max(0, int(raw_duration or 0))
+            except (TypeError, ValueError):
+                duration = 0
             players.append({
-                "name": "Jugador conectando / oculto por Steam",
-                "score": 0,
-                "duration_seconds": 0
+                "name": str(getattr(player, "name", "") or "Jugador sin nombre")[:64],
+                "score": score,
+                "duration_seconds": duration
             })
+        players.sort(key=lambda player: (player["score"] is None, -(player["score"] or 0), player["name"].lower()))
 
         return {
             "server": server,
             "players": players,
             "players_available": True,
+            "scores_available": any(player["score"] is not None for player in players),
             "message": "Datos obtenidos directamente del servidor."
         }
     except Exception:
@@ -404,6 +423,74 @@ async def server_players(address: str = Query(..., min_length=3, max_length=128)
             "players_available": False,
             "message": "Este servidor no facilita la lista de jugadores mediante A2S en este momento."
         }
+
+_wanted_poll_lock = asyncio.Lock()
+
+async def _read_server_scores(server):
+    address = str(server.get("address") or "")
+    if ":" not in address or int(server.get("players", 0) or 0) <= 0:
+        return []
+    host, port_text = address.rsplit(":", 1)
+    try:
+        port = int(port_text)
+        raw = await asyncio.to_thread(a2s.players, (host, port), timeout=QUERY_TIMEOUT)
+    except Exception:
+        return []
+    result = []
+    for player in raw:
+        name = str(getattr(player, "name", "") or "").strip()[:64]
+        raw_score = getattr(player, "score", None)
+        if not name or raw_score is None:
+            continue
+        try:
+            score = int(raw_score)
+            duration = max(0.0, float(getattr(player, "duration", 0) or 0))
+        except (TypeError, ValueError):
+            continue
+        result.append((address, name.casefold(), name, score, duration))
+    return result
+
+@app.get("/api/wanted")
+async def wanted():
+    """Accumulate only score values actually published by game servers over A2S."""
+    data = await refresh()
+    servers_to_poll = [server for server in data["servers"] if int(server.get("players", 0) or 0) > 0]
+    async with _wanted_poll_lock:
+        batches = await asyncio.gather(*(_read_server_scores(server) for server in servers_to_poll))
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        observed = 0
+        with db() as conn:
+            for batch in batches:
+                for address, player_key, player_name, score, duration in batch:
+                    observed += 1
+                    previous = conn.execute("""SELECT total_points,last_score,last_duration
+                        FROM player_score_totals WHERE server_address=? AND player_key=?""",
+                        (address, player_key)).fetchone()
+                    if previous is None:
+                        # First observation: count the current real in-game score as the starting balance.
+                        total = max(0, score)
+                        conn.execute("""INSERT INTO player_score_totals
+                            (server_address,player_key,player_name,total_points,last_score,last_duration,last_seen)
+                            VALUES(?,?,?,?,?,?,?)""",
+                            (address, player_key, player_name, total, score, duration, now))
+                    else:
+                        old_score = int(previous["last_score"] or 0)
+                        old_duration = float(previous["last_duration"] or 0)
+                        # A lower score after a fresh session usually means the match/session reset.
+                        delta = score if (duration + 5 < old_duration or score < old_score) else max(0, score - old_score)
+                        total = int(previous["total_points"] or 0) + max(0, delta)
+                        conn.execute("""UPDATE player_score_totals SET player_name=?,total_points=?,
+                            last_score=?,last_duration=?,last_seen=? WHERE server_address=? AND player_key=?""",
+                            (player_name, total, score, duration, now, address, player_key))
+            rows = conn.execute("""SELECT player_key, MAX(player_name) AS name, SUM(total_points) AS points,
+                MAX(last_seen) AS last_seen FROM player_score_totals
+                GROUP BY player_key ORDER BY points DESC, LOWER(MAX(player_name)) ASC LIMIT 100""").fetchall()
+        leaderboard = [{"name": row["name"], "points": int(row["points"] or 0), "last_seen": row["last_seen"]}
+                       for row in rows if int(row["points"] or 0) > 0]
+    return {"players": leaderboard, "observed_players": observed,
+            "scores_supported": observed > 0,
+            "message": ("Puntuaciones reales observadas mediante A2S." if observed else
+                        "Los servidores activos no han publicado puntuaciones A2S en esta consulta.")}
 
 @app.get("/api/servers")
 async def servers(force: bool = Query(False)):
