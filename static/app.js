@@ -132,7 +132,19 @@ async function showServerDetails(address){
     const roster=data.players_available
       ? (data.players.length?`<div class="player-roster">${data.players.map((player,index)=>`<div class="player-roster-row"><span class="player-rank">${index+1}</span><strong>${esc(player.name)}</strong><span class="player-score">${player.score_available===false?"Puntuación N/D":`${esc(player.score)} pts`}</span><span class="player-duration">${formatDuration(player.duration_seconds)}</span></div>`).join("")}</div>`:'<p class="server-detail-empty">El servidor responde, pero ahora mismo no devuelve nombres de jugadores.</p>')
       : `<p class="server-detail-empty">${esc(data.message||"No se ha podido obtener la lista de jugadores.")}</p>`;
-    content.innerHTML=`<div class="server-detail-heading"><div><span class="server-detail-kicker">DETALLES DEL SERVIDOR</span><h3>${esc(server.name||"Servidor")}</h3><p>${esc(server.address||address)} · ${esc(server.game||"Lead and Gold")}</p></div><span class="server-detail-online">● ONLINE</span></div>${stats}<h4>JUGADORES CONECTADOS ${data.players_available?`(${data.players.length})`:""}</h4>${roster}<p class="server-detail-note">Puntuación y tiempo son los datos que el servidor publique mediante el protocolo A2S; pueden no estar disponibles en todos los servidores.</p>`;
+    content.innerHTML=`<div class="server-detail-heading"><div><span class="server-detail-kicker">DETALLES DEL SERVIDOR</span><h3>${esc(server.name||"Servidor")}</h3><p>${esc(server.address||address)} · ${esc(server.game||"Lead and Gold")}</p></div><span class="server-detail-online">● ONLINE</span></div>${stats}<h4>JUGADORES CONECTADOS ${data.players_available?`(${data.players.length})`:""}</h4>${roster}<section class="server-exp-diagnostic"><h4>COMPROBACIÓN DE EXP EN DIRECTO</h4><p id="expDiagnosticStatus" class="server-detail-note">Consultando variables públicas A2S_RULES…</p></section><p class="server-detail-note">La EXP solo se mostrará cuando exista un dato real publicado por el servidor; no se calculará ni inventará.</p>`;
+    fetch(`/api/server-exp-diagnostic?address=${encodeURIComponent(address)}`,{cache:"no-store"})
+      .then(r=>r.json().then(body=>({ok:r.ok,body})))
+      .then(({ok,body})=>{
+        const status=$("expDiagnosticStatus"); if(!status || modal.hidden)return;
+        if(!ok)throw new Error(body.detail||"No se pudo consultar A2S_RULES.");
+        if(body.exp_found){
+          status.innerHTML=`${esc(body.message)}<ul>${body.exp_candidates.map(item=>`<li><strong>${esc(item.key)}:</strong> ${esc(item.value)}</li>`).join("")}</ul>`;
+        }else{
+          status.textContent=`${body.message} (${Number(body.rules_count)||0} variables recibidas).`;
+        }
+      })
+      .catch(error=>{const status=$("expDiagnosticStatus");if(status)status.textContent=error.message||"No se pudo completar la comprobación.";});
   }catch(error){content.innerHTML=`<p class="server-detail-empty">${esc(error.message||"No se pudieron cargar los detalles.")}</p>`;}
 }
 

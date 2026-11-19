@@ -424,6 +424,55 @@ async def server_players(address: str = Query(..., min_length=3, max_length=128)
             "message": f"No se pudo consultar A2S_PLAYER ({type(exc).__name__})."
         }
 
+
+@app.get("/api/server-exp-diagnostic")
+async def server_exp_diagnostic(address: str = Query(..., min_length=3, max_length=128)):
+    """Inspect public A2S_RULES for possible live EXP fields; never invent player EXP."""
+    if ":" not in address:
+        raise HTTPException(400, "Dirección de servidor no válida.")
+    host, port_text = address.rsplit(":", 1)
+    try:
+        port = int(port_text)
+        if not host or not (1 <= port <= 65535):
+            raise ValueError()
+    except ValueError:
+        raise HTTPException(400, "Dirección de servidor no válida.")
+
+    data = await refresh()
+    server = next((item for item in data["servers"] if item.get("address") == address), None)
+    if not server:
+        raise HTTPException(404, "El servidor ya no aparece como disponible.")
+
+    try:
+        rules = await asyncio.to_thread(a2s.rules, (host, port), timeout=min(QUERY_TIMEOUT, 3.0))
+        # Only return rule names/values plausibly related to experience or score.
+        keywords = ("exp", "experience", "experiencia", "xp", "score", "rank", "level")
+        candidates = []
+        for key, value in (rules or {}).items():
+            key_text = str(key)
+            if any(word in key_text.casefold() for word in keywords):
+                candidates.append({"key": key_text[:80], "value": str(value)[:160]})
+        logger.info(
+            "A2S_RULES address=%s rules_count=%d candidate_keys=%s",
+            address, len(rules or {}), [item["key"] for item in candidates[:30]]
+        )
+        return {
+            "rules_available": True,
+            "rules_count": len(rules or {}),
+            "exp_candidates": candidates[:30],
+            "exp_found": bool(candidates),
+            "message": "Se han encontrado variables candidatas; aún hay que verificar si representan EXP individual en directo." if candidates else "El servidor responde a A2S_RULES, pero no publica variables con nombres relacionados con EXP, experiencia, XP, puntos, rango o nivel."
+        }
+    except Exception as exc:
+        logger.info("A2S_RULES unavailable address=%s error_type=%s", address, type(exc).__name__)
+        return {
+            "rules_available": False,
+            "rules_count": 0,
+            "exp_candidates": [],
+            "exp_found": False,
+            "message": f"El servidor no ha permitido consultar A2S_RULES ({type(exc).__name__})."
+        }
+
 @app.get("/api/servers")
 async def servers(force: bool = Query(False)):
     if force: _cache["at"] = 0
