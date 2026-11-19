@@ -1,4 +1,4 @@
-import os, asyncio, time, sqlite3, json, secrets, hashlib, re, uuid
+import os, asyncio, time, sqlite3, json, secrets, hashlib, re, uuid, logging
 from typing import Any
 from contextlib import contextmanager
 import httpx
@@ -7,6 +7,8 @@ from fastapi import FastAPI, Query, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger("leadgold.players")
 
 APP_ID = 42120
 STEAM_API_KEY = os.getenv("STEAM_API_KEY", "").strip()
@@ -375,11 +377,26 @@ async def server_players(address: str = Query(..., min_length=3, max_length=128)
 
     try:
         raw_players = await asyncio.to_thread(a2s.players, (host, port), timeout=QUERY_TIMEOUT)
-        players = [{
-            "name": str(getattr(player, "name", "") or "Jugador sin nombre")[:64],
-            "score": int(getattr(player, "score", 0) or 0),
-            "duration_seconds": max(0, int(getattr(player, "duration", 0) or 0))
-        } for player in raw_players]
+        players = []
+        score_values = []
+        for player in raw_players:
+            raw_score = getattr(player, "score", None)
+            raw_duration = getattr(player, "duration", None)
+            # Diagnóstico: registrar disponibilidad/tipo de los campos sin guardar nicks.
+            score_values.append(raw_score)
+            players.append({
+                "name": str(getattr(player, "name", "") or "Jugador sin nombre")[:64],
+                "score": int(raw_score or 0),
+                "duration_seconds": max(0, int(raw_duration or 0)),
+                "score_available": raw_score is not None
+            })
+        zero_scores = sum(1 for value in score_values if value in (None, 0))
+        logger.info(
+            "A2S_PLAYER address=%s players=%d score_zero_or_missing=%d score_samples=%s "
+            "a2s_library=%s",
+            address, len(players), zero_scores, score_values[:20],
+            getattr(a2s, "__version__", "version-no-expuesta")
+        )
         players.sort(key=lambda player: (-player["score"], player["name"].lower()))
 
         # Completar si A2S_INFO reporta más jugadores que nombres devuelve A2S_PLAYER
@@ -397,12 +414,13 @@ async def server_players(address: str = Query(..., min_length=3, max_length=128)
             "players_available": True,
             "message": "Datos obtenidos directamente del servidor."
         }
-    except Exception:
+    except Exception as exc:
+        logger.exception("A2S_PLAYER failed address=%s error_type=%s", address, type(exc).__name__)
         return {
             "server": server,
             "players": [],
             "players_available": False,
-            "message": "Este servidor no facilita la lista de jugadores mediante A2S en este momento."
+            "message": f"No se pudo consultar A2S_PLAYER ({type(exc).__name__})."
         }
 
 @app.get("/api/servers")
