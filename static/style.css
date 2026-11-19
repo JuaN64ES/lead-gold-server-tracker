@@ -228,8 +228,8 @@ body.modal-open{overflow:hidden}
 .avatar-option{padding:0;gap:4px;background:transparent;border:0;border-radius:0;box-shadow:none;min-height:0}
 .avatar-option:hover{border:0;background:transparent;box-shadow:none;transform:translateY(-1px)}
 .avatar-option.selected{border:0;background:transparent;box-shadow:none}
-.avatar-portrait{width:auto;height:56px;display:flex;align-items:center;justify-content:center;overflow:visible;border:0;border-radius:0;background:transparent}
-.avatar-portrait img{display:block;width:auto;height:56px;max-width:100%;object-fit:contain;object-position:center;filter:drop-shadow(0 2px 3px #0008)}
+.avatar-portrait{width:auto;height:112px;display:flex;align-items:center;justify-content:center;overflow:visible;border:0;border-radius:0;background:transparent}
+.avatar-portrait img{display:block;width:auto;height:112px;max-width:100%;object-fit:contain;object-position:center;filter:drop-shadow(0 2px 3px #0008)}
 .avatar-option strong{font-size:10px;line-height:1.2}
 .avatar-selected{margin-top:7px}
-@media(max-width:600px){.avatar-options{gap:7px}.avatar-option{padding:0}.avatar-portrait{height:42px}.avatar-portrait img{height:42px}.avatar-option strong{font-size:9px}}
+@media(max-width:600px){.avatar-options{gap:7px}.avatar-option{padding:0}.avatar-portrait{height:82px}.avatar-portrait img{height:82px}}
