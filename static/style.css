@@ -209,3 +209,12 @@ body.modal-open{overflow:hidden}
 .steam-community-link img{display:block;width:34px;height:34px;object-fit:contain}
 .steam-community-link:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 @media(max-width:480px){.steam-community-link{width:38px;height:38px;margin-left:3px}.steam-community-link img{width:31px;height:31px}}
+
+
+/* Icono de Steam a la izquierda del texto, sin marco */
+.top-right{display:flex;align-items:center;gap:9px}
+.steam-community-link{order:0;width:auto;height:auto;margin:0;padding:0;border:0;border-radius:0;background:transparent;line-height:0;box-shadow:none}
+.steam-community-link:hover{border:0;background:transparent;transform:scale(1.06)}
+.steam-community-link img{width:40px;height:40px;object-fit:contain}
+.steam-community-link:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+@media(max-width:480px){.steam-community-link{width:auto;height:auto;margin:0}.steam-community-link img{width:34px;height:34px}}
