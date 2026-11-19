@@ -405,6 +405,7 @@ async def server_players(address: str = Query(..., min_length=3, max_length=128)
             players.append({
                 "name": "Jugador conectando / oculto por Steam",
                 "score": 0,
+                "score_available": False,
                 "duration_seconds": 0
             })
 
