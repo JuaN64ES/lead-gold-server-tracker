@@ -388,7 +388,10 @@ async def server_players(address: str = Query(..., min_length=3, max_length=128)
                 "name": str(getattr(player, "name", "") or "Jugador sin nombre")[:64],
                 "score": int(raw_score or 0),
                 "duration_seconds": max(0, int(raw_duration or 0)),
-                "score_available": raw_score is not None
+                "score_available": raw_score is not None,
+                # A2S_PLAYER score no se considera EXP: no hay fuente individual verificada.
+                "exp": None,
+                "exp_available": False
             })
         zero_scores = sum(1 for value in score_values if value in (None, 0))
         logger.info(
@@ -397,7 +400,7 @@ async def server_players(address: str = Query(..., min_length=3, max_length=128)
             address, len(players), zero_scores, score_values[:20],
             getattr(a2s, "__version__", "version-no-expuesta")
         )
-        players.sort(key=lambda player: (-player["score"], player["name"].lower()))
+        players.sort(key=lambda player: player["name"].lower())
 
         # Completar si A2S_INFO reporta más jugadores que nombres devuelve A2S_PLAYER
         missing_count = max(0, int(server.get("players", 0)) - len(players))
@@ -406,7 +409,9 @@ async def server_players(address: str = Query(..., min_length=3, max_length=128)
                 "name": "Jugador conectando / oculto por Steam",
                 "score": 0,
                 "score_available": False,
-                "duration_seconds": 0
+                "duration_seconds": 0,
+                "exp": None,
+                "exp_available": False
             })
 
         return {
