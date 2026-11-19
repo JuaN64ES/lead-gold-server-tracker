@@ -6,7 +6,7 @@
 <title>Lead and Gold Multiplayer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/style.css?v=wanted-20261118a">
+<link rel="stylesheet" href="/static/style.css?v=20261117c">
 </head>
 <body>
 <div class="shell">
@@ -29,11 +29,6 @@
         <article class="stat"><span class="stat-label">ÚLTIMA ACTUALIZACIÓN</span><strong class="small-value" id="lastUpdate">—</strong><span class="stat-foot" id="refreshLabel">Actualización automática</span></article>
       </div>
     </section>
-    <nav class="main-tabs" aria-label="Secciones principales">
-      <button class="main-tab active" type="button" data-tab="serversPanel" aria-selected="true">Servidores</button>
-      <button class="main-tab" type="button" data-tab="wantedPanel" aria-selected="false">Wanted</button>
-    </nav>
-    <div id="serversPanel" class="tab-panel active">
     <section class="browser">
       <div class="section-head"><div><div class="eyebrow">SERVER BROWSER</div><h2>Lista de servidores</h2></div><div class="server-actions"><button id="refreshBtn" class="refresh"><span>↻</span> Actualizar</button><button id="notifyBtn" class="refresh" type="button"><span>♧</span> AVISAR</button></div></div>
       <div class="toolbar">
@@ -45,14 +40,6 @@
       <div class="table-wrap"><table><thead><tr><th>ESTADO / SERVIDOR</th><th>MAPA</th><th>JUGADORES</th></tr></thead><tbody id="serverRows"><tr><td colspan="4" class="empty">Buscando servidores…</td></tr></tbody></table></div>
       <div id="emptyState" class="empty-state" hidden><div class="empty-icon">⌕</div><strong>No se encontraron servidores</strong><span>Prueba a cambiar los filtros o vuelve a actualizar.</span></div>
       <footer class="table-foot"><span id="resultCount">0 servidores</span><span>Datos de servidores consultados desde Steam</span></footer>
-    </section>
-    </div>
-    <section id="wantedPanel" class="wanted-panel tab-panel" hidden>
-      <div class="section-head"><div><div class="eyebrow">BOUNTY BOARD</div><h2>Wanted · Los más buscados</h2></div><button id="wantedRefresh" class="refresh" type="button"><span>↻</span> Actualizar</button></div>
-      <p class="wanted-intro">Clasificación acumulada de los puntos reales que los servidores publican mientras juegas. Solo cuentan puntuaciones recibidas del juego; no se generan puntos ficticios.</p>
-      <div id="wantedNotice" class="notice">Consultando puntuaciones de los servidores…</div>
-      <div id="wantedList" class="wanted-list"><div class="empty">Cargando Wanted…</div></div>
-      <p class="server-detail-note">El ranking se construye con las puntuaciones A2S observadas periódicamente. Si el juego o un servidor no publica esos datos, no es posible contabilizar sus puntos desde la web.</p>
     </section>
 
     <div id="serverModal" class="server-modal" hidden role="dialog" aria-modal="true" aria-labelledby="serverModalTitle">
@@ -93,5 +80,5 @@
     <footer class="page-foot"><span>LEAD AND GOLD MULTIPLAYER</span><span>Proyecto comunitario no oficial · No afiliado a Fatshark ni Valve</span></footer>
   </main>
 </div>
-<script src="/static/app.js?v=wanted-20261118a"></script>
+<script src="/static/app.js?v=push-alerts-1"></script>
 </body></html>

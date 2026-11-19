@@ -130,9 +130,9 @@ async function showServerDetails(address){
     const server=data.server||{};
     const stats=`<div class="server-detail-stats"><div><span>JUGADORES</span><strong>${Number(server.players)||0} / ${Number(server.max_players)||0}</strong></div><div><span>MAPA</span><strong>${esc(server.map||"Desconocido")}</strong></div><div><span>RESPUESTA</span><strong>${server.response_ms==null?"—":`${esc(server.response_ms)} ms`}</strong></div></div>`;
     const roster=data.players_available
-      ? (data.players.length?`<div class="player-roster">${data.players.map((player,index)=>`<div class="player-roster-row"><span class="player-rank">${index+1}</span><strong>${esc(player.name)}</strong><span class="player-score">${player.score===null?"No disponible":`${esc(player.score)} pts`}</span><span class="player-duration">${formatDuration(player.duration_seconds)}</span></div>`).join("")}</div>`:'<p class="server-detail-empty">El servidor responde, pero ahora mismo no devuelve nombres de jugadores.</p>')
+      ? (data.players.length?`<div class="player-roster">${data.players.map((player,index)=>`<div class="player-roster-row"><span class="player-rank">${index+1}</span><strong>${esc(player.name)}</strong><span class="player-score">${esc(player.score)} pts</span><span class="player-duration">${formatDuration(player.duration_seconds)}</span></div>`).join("")}</div>`:'<p class="server-detail-empty">El servidor responde, pero ahora mismo no devuelve nombres de jugadores.</p>')
       : `<p class="server-detail-empty">${esc(data.message||"No se ha podido obtener la lista de jugadores.")}</p>`;
-    content.innerHTML=`<div class="server-detail-heading"><div><span class="server-detail-kicker">DETALLES DEL SERVIDOR</span><h3>${esc(server.name||"Servidor")}</h3><p>${esc(server.address||address)} · ${esc(server.game||"Lead and Gold")}</p></div><span class="server-detail-online">● ONLINE</span></div>${stats}<h4>JUGADORES CONECTADOS ${data.players_available?`(${data.players.length})`:""}</h4>${roster}<p class="server-detail-note">${data.scores_available?"Puntuaciones y tiempo recibidos del servidor mediante A2S.":"Este servidor no ha publicado puntuaciones A2S. No se muestran ceros como si fueran puntos reales."} El tiempo jugado también depende de los datos que facilite el servidor.</p>`;
+    content.innerHTML=`<div class="server-detail-heading"><div><span class="server-detail-kicker">DETALLES DEL SERVIDOR</span><h3>${esc(server.name||"Servidor")}</h3><p>${esc(server.address||address)} · ${esc(server.game||"Lead and Gold")}</p></div><span class="server-detail-online">● ONLINE</span></div>${stats}<h4>JUGADORES CONECTADOS ${data.players_available?`(${data.players.length})`:""}</h4>${roster}<p class="server-detail-note">Puntuación y tiempo son los datos que el servidor publique mediante el protocolo A2S; pueden no estar disponibles en todos los servidores.</p>`;
   }catch(error){content.innerHTML=`<p class="server-detail-empty">${esc(error.message||"No se pudieron cargar los detalles.")}</p>`;}
 }
 
@@ -244,31 +244,5 @@ async function updatePushButtonState(){
   }catch(_){}
 }
 if("serviceWorker" in navigator)navigator.serviceWorker.register("/sw.js").then(updatePushButtonState).catch(()=>{});
-async function loadWanted(){
-  const notice=$("wantedNotice"), list=$("wantedList");
-  try{
-    const res=await fetch("/api/wanted",{cache:"no-store"});
-    const data=await res.json(); if(!res.ok)throw new Error(data.detail||"No se pudo cargar Wanted.");
-    notice.textContent=data.message||"Ranking actualizado con datos de los servidores.";
-    if(data.players&&data.players.length){
-      list.innerHTML=data.players.map((player,index)=>`<div class="wanted-row"><span class="wanted-rank">${index+1}</span><span class="wanted-star">${index<3?["★","✦","✧"][index]:"✧"}</span><strong>${esc(player.name)}</strong><span class="wanted-points">${Number(player.points).toLocaleString("es-ES")} pts</span></div>`).join("");
-    }else{
-      list.innerHTML='<div class="empty-state"><div class="empty-icon">✧</div><strong>Aún no hay puntuaciones verificables</strong><span>Cuando los servidores publiquen puntos reales y la web pueda observarlos, aparecerán aquí.</span></div>';
-    }
-  }catch(error){notice.className="notice error";notice.textContent=error.message||"No se pudo actualizar Wanted.";}
-}
-function activateTab(panelId){
-  document.querySelectorAll(".main-tab").forEach(button=>{
-    const active=button.dataset.tab===panelId;
-    button.classList.toggle("active",active);button.setAttribute("aria-selected",String(active));
-  });
-  document.querySelectorAll(".tab-panel").forEach(panel=>{
-    const active=panel.id===panelId;panel.hidden=!active;panel.classList.toggle("active",active);
-  });
-  if(panelId==="wantedPanel")loadWanted();
-}
-document.querySelectorAll(".main-tab").forEach(button=>button.addEventListener("click",()=>activateTab(button.dataset.tab)));
-$("wantedRefresh").addEventListener("click",loadWanted);
-
-load();loadMeetups();loadWanted();
-refreshTimer=setInterval(()=>{load(false);loadMeetups();loadWanted();},45000);
+load();loadMeetups();
+refreshTimer=setInterval(()=>{load(false);loadMeetups();},45000);

@@ -200,16 +200,3 @@ body.modal-open{overflow:hidden}
   .player-profile>.profile-edit input{width:100%}
   .player-profile .profile-hint{margin:0 0 3px 0}
 }
-
-
-/* Navegación principal y clasificación Wanted */
-.main-tabs{display:flex;gap:8px;margin:8px 0 16px;border-bottom:1px solid #263344;padding-bottom:10px}
-.main-tab{border:1px solid #34465c;background:#111d2a;color:#a9b8c9;border-radius:7px;padding:11px 20px;font:800 11px Inter,sans-serif;letter-spacing:1px;text-transform:uppercase;cursor:pointer}
-.main-tab:hover,.main-tab.active{border-color:#b8894c;color:#f3c27e;background:linear-gradient(145deg,#2a2118,#172130)}
-.tab-panel[hidden]{display:none!important}
-.wanted-panel{background:#0f1722;border:1px solid var(--line);border-radius:12px;padding:26px;margin-top:8px;box-shadow:0 20px 60px #0003}
-.wanted-intro{color:#9aa8b9;line-height:1.6;max-width:760px;margin:16px 0}
-.wanted-list{border:1px solid #263344;border-radius:9px;overflow:hidden;background:#0b121c}
-.wanted-row{display:grid;grid-template-columns:34px 24px minmax(0,1fr) auto;align-items:center;gap:12px;padding:15px 17px;border-bottom:1px solid #202d3d}
-.wanted-row:last-child{border-bottom:0}.wanted-rank{color:#8291a5;font-weight:800;font-variant-numeric:tabular-nums}.wanted-star{color:#d4a15d;font-size:17px}.wanted-row strong{color:#eaf1f8;overflow-wrap:anywhere}.wanted-points{color:#f0bd7b;font-weight:800;font-variant-numeric:tabular-nums}
-@media(max-width:700px){.wanted-panel{padding:17px 12px}.wanted-row{grid-template-columns:24px 18px minmax(0,1fr) auto;gap:8px;padding:13px 10px}.wanted-points{font-size:11px}.main-tab{flex:1;padding:11px 8px}}

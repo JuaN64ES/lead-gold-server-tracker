@@ -72,10 +72,3 @@ La frecuencia práctica de detección con la configuración gratuita actual es d
 La comunidad permite reservar un nick global mediante `POST /api/identity/register`. El servidor genera un código privado aleatorio y almacena únicamente su hash SHA-256. El nick se normaliza y se reserva sin distinguir mayúsculas/minúsculas. El código se muestra una sola vez; debe guardarse para recuperar la identidad en otro dispositivo mediante `POST /api/identity/login`.
 
 Las acciones de crear/editar/eliminar quedadas y votar requieren el código privado, que se valida en el servidor. No se requiere correo electrónico ni cuenta tradicional. La identidad y los nicks se almacenan en la misma base de datos configurada por `DATABASE_URL` o `COMMUNITY_DB_PATH`.
-
-
-## Wanted: clasificación acumulada de puntos
-
-La pestaña **Wanted** consulta las listas A2S de los servidores con jugadores y acumula los incrementos de puntuación que el propio servidor publica. El acumulado se guarda en `player_score_totals` en la misma base de datos comunitaria, por lo que persiste entre visitas y reinicios. Se agrupa por nombre de jugador y se actualiza al abrir/actualizar la pestaña y mediante el endpoint `/api/health`. Como el proyecto ya configura `cron-job.org` para llamar a `/api/health` cada minuto, el muestreo continúa aunque nadie tenga abierta la web.
-
-La web ya no inventa jugadores ocultos con 0 puntos ni convierte una puntuación ausente en cero. Si A2S no devuelve puntuaciones, Wanted no puede calcular un ranking fiable para ese servidor. La clasificación representa puntos observados desde que se activa esta versión; no recupera estadísticas históricas anteriores ni puede sumar partidas durante periodos en los que el backend no haya podido consultar el servidor.
