@@ -218,3 +218,18 @@ body.modal-open{overflow:hidden}
 .steam-community-link img{width:40px;height:40px;object-fit:contain}
 .steam-community-link:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
 @media(max-width:480px){.steam-community-link{width:auto;height:auto;margin:0}.steam-community-link img{width:34px;height:34px}}
+
+
+/* Selector de personajes: avatares sin tarjetas ni marcos de interfaz,
+   imagen completa y reducida aproximadamente al 50%. */
+.avatar-picker{padding:8px 0;margin:0 0 13px;background:transparent;border:0;border-radius:0}
+.avatar-picker-heading{margin-bottom:8px}
+.avatar-options{gap:12px;align-items:start}
+.avatar-option{padding:0;gap:4px;background:transparent;border:0;border-radius:0;box-shadow:none;min-height:0}
+.avatar-option:hover{border:0;background:transparent;box-shadow:none;transform:translateY(-1px)}
+.avatar-option.selected{border:0;background:transparent;box-shadow:none}
+.avatar-portrait{width:auto;height:56px;display:flex;align-items:center;justify-content:center;overflow:visible;border:0;border-radius:0;background:transparent}
+.avatar-portrait img{display:block;width:auto;height:56px;max-width:100%;object-fit:contain;object-position:center;filter:drop-shadow(0 2px 3px #0008)}
+.avatar-option strong{font-size:10px;line-height:1.2}
+.avatar-selected{margin-top:7px}
+@media(max-width:600px){.avatar-options{gap:7px}.avatar-option{padding:0}.avatar-portrait{height:42px}.avatar-portrait img{height:42px}.avatar-option strong{font-size:9px}}
